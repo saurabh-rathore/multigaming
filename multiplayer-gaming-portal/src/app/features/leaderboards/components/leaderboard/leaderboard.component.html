@@ -1,0 +1,80 @@
+<div class="container py-4">
+  <h1 class="mb-4">Leaderboards</h1>
+
+  <div *ngIf="isLoadingGames" class="text-center">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading games...</span></div>
+  </div>
+
+  <div *ngIf="!isLoadingGames && (availableGames$ | async) as games">
+    <div class="row mb-3 g-3 align-items-center">
+      <div class="col-md-5">
+        <label for="gameSelect" class="form-label">Select Game:</label>
+        <select id="gameSelect" class="form-select" [(ngModel)]="selectedGameId" (ngModelChange)="onGameChange()">
+          <option *ngIf="!games || games.length === 0" value="" disabled>No games available</option>
+          <option *ngFor="let game of games" [value]="game.gameId">{{ game.name }}</option>
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label for="timeframeSelect" class="form-label">Select Timeframe:</label>
+        <select id="timeframeSelect" class="form-select" [(ngModel)]="selectedTimeframe" (ngModelChange)="onTimeframeChange()">
+          <option *ngFor="let tf of timeframes" [value]="tf">{{ tf | titlecase }}</option>
+        </select>
+      </div>
+      <!-- Button removed as fetchLeaderboard is called on ngModelChange -->
+      <!--
+      <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-primary w-100" (click)="fetchLeaderboard()" [disabled]="isLoadingLeaderboard || !selectedGameId">
+          <span *ngIf="isLoadingLeaderboard" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          View
+        </button>
+      </div>
+      -->
+    </div>
+
+    <div *ngIf="isLoadingLeaderboard" class="text-center mt-4">
+      <div class="spinner-border text-secondary" role="status"><span class="visually-hidden">Loading leaderboard...</span></div>
+      <p>Loading leaderboard...</p>
+    </div>
+
+    <div *ngIf="error && !isLoadingLeaderboard" class="alert alert-danger mt-3">
+      {{ error }}
+    </div>
+
+    <div *ngIf="!isLoadingLeaderboard && leaderboard">
+      <h3 class="mt-4">{{ leaderboard.gameName || selectedGameId | titlecase }} - {{ leaderboard.timeframe | titlecase }} Leaderboard</h3>
+      <p class="text-muted small">Generated at: {{ leaderboard.generatedAt | date:'medium' }}</p>
+
+      <div *ngIf="leaderboard.entries.length > 0; else noEntries" class="table-responsive">
+        <table class="table table-striped table-hover shadow-sm">
+          <thead class="table-dark">
+            <tr>
+              <th scope="col">Rank</th>
+              <th scope="col">Player</th>
+              <th scope="col">Score</th>
+              <th scope="col">Games Played</th>
+              <th scope="col" *ngIf="leaderboard.entries[0]?.wins !== undefined">Wins</th>
+              <th scope="col" *ngIf="leaderboard.entries[0]?.totalWinnings !== undefined">Total Winnings</th>
+              <th scope="col" *ngIf="leaderboard.entries[0]?.lastPlayedAt !== undefined">Last Played</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let entry of leaderboard.entries">
+              <th scope="row">{{ entry.rank }}</th>
+              <td>{{ entry.displayName || entry.userId }}</td>
+              <td>{{ entry.score }}</td>
+              <td>{{ entry.gamesPlayed }}</td>
+              <td *ngIf="entry.wins !== undefined">{{ entry.wins }}</td>
+              <td *ngIf="entry.totalWinnings !== undefined">{{ entry.totalWinnings }}</td>
+              <td *ngIf="entry.lastPlayedAt !== undefined">{{ entry.lastPlayedAt | date:'shortDate' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ng-template #noEntries>
+        <div class="alert alert-info mt-3">
+          No leaderboard entries found for the selected criteria.
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>

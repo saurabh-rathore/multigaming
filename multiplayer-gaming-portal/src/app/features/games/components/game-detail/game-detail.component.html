@@ -1,0 +1,53 @@
+<div class="container py-4">
+  <div *ngIf="isLoading" class="text-center">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading game details...</span>
+    </div>
+    <p>Loading game details...</p>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger">
+    {{ error }} <a routerLink="/games" class="alert-link">Back to Game Lobby</a>
+  </div>
+
+  <ng-container *ngIf="!isLoading && !error && (game$ | async) as game">
+    <div *ngIf="game; else gameNotFound">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a routerLink="/games">Game Lobby</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{{ game.name }}</li>
+        </ol>
+      </nav>
+
+      <div class="row">
+        <div class="col-md-4">
+          <img [src]="game.assetsUrl || 'assets/images/games/default_thumbnail.png'"
+               onerror="this.src='assets/images/games/default_thumbnail.png'"
+               class="img-fluid rounded shadow" alt="{{ game.name }}">
+        </div>
+        <div class="col-md-8">
+          <h1>{{ game.name }}</h1>
+          <p class="lead text-muted">{{ game.genre }}</p>
+          <hr>
+          <p><strong>Description:</strong> {{ game.description || 'N/A' }}</p>
+          <p><strong>Players:</strong> {{ game.minPlayers }} - {{ game.maxPlayers }}</p>
+          <p *ngIf="game.stakeOptions"><strong>Stakes:</strong> {{ game.stakeOptions | json }}</p>
+          <p *ngIf="game.rulesUrl"><a [href]="game.rulesUrl" target="_blank" class="btn btn-info">Game Rules</a></p>
+
+          <div class="mt-4">
+            <button class="btn btn-lg btn-success">Play {{ game.name }}</button>
+            <!-- More actions can go here: e.g., view leaderboards for this game, etc. -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+  <ng-template #gameNotFound>
+    <div *ngIf="!isLoading && !error"> <!-- Only show if not loading and no other error -->
+        <div class="alert alert-warning">
+            The requested game could not be found.
+            <a routerLink="/games" class="alert-link">Return to Game Lobby</a>
+        </div>
+    </div>
+  </ng-template>
+</div>

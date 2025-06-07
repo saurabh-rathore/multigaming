@@ -1,0 +1,47 @@
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Tournaments</h1>
+    <div>
+      <label for="statusFilter" class="form-label me-2">Filter by status:</label>
+      <select id="statusFilter" class="form-select d-inline-block w-auto"
+              (change)="onFilterChange($event)" [(ngModel)]="selectedStatus">
+        <option value="all">All</option>
+        <option value="upcoming">Upcoming</option>
+        <option value="registration_open">Registration Open</option>
+        <option value="active">Active</option>
+        <option value="completed">Completed</option>
+      </select>
+    </div>
+  </div>
+
+  <div *ngIf="isLoading" class="text-center">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+    <p>Loading tournaments...</p>
+  </div>
+  <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+  <div *ngIf="!isLoading && !error && (tournaments$ | async) as tournaments">
+    <div *ngIf="tournaments.length === 0" class="alert alert-info">
+      No tournaments match the current filter.
+    </div>
+    <div class="list-group">
+      <a *ngFor="let t of tournaments" [routerLink]="['/tournaments', t.tournamentId]"
+         class="list-group-item list-group-item-action flex-column align-items-start mb-2 shadow-sm">
+        <div class="d-flex w-100 justify-content-between">
+          <h5 class="mb-1">{{ t.name }} ({{ t.gameName || t.gameId }})</h5>
+          <small class="text-muted">{{ t.scheduledStartTime | date:'medium' }}</small>
+        </div>
+        <p class="mb-1">{{ t.description || 'No description available.' }}</p>
+        <div class="d-flex justify-content-between align-items-center">
+            <small>
+                Status: <span class="badge bg-primary">{{ t.status }}</span> |
+                Fee: {{ t.entryFee === 0 ? 'Free' : (t.entryFee + ' ' + t.currency) }} |
+                Prize: {{ t.prizePool }} {{ t.currency }} |
+                Players: {{ t.currentParticipants || 0 }} / {{ t.maxParticipants || 'Unlimited' }}
+            </small>
+            <button class="btn btn-sm btn-outline-primary">View Details</button>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>

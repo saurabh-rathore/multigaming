@@ -1,0 +1,95 @@
+<div class="container py-4">
+  <div *ngIf="isLoading && !tournament$" class="text-center mt-5">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+    <p>Loading tournament details...</p>
+  </div>
+  <div *ngIf="error" class="alert alert-danger">{{ error }} <a routerLink="/tournaments" class="alert-link">Back to Tournaments</a></div>
+
+  <ng-container *ngIf="tournament$ | async as t">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a routerLink="/tournaments">Tournaments</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ t.name }}</li>
+      </ol>
+    </nav>
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h2 class="mb-0">{{ t.name }} <span class="badge bg-light text-dark ms-2">{{ t.status }}</span></h2>
+      </div>
+      <div class="card-body">
+        <p class="card-text"><strong>Game:</strong> {{ t.gameName || t.gameId }}</p>
+        <p class="card-text">{{ t.description || 'No description available.' }}</p>
+
+        <div class="row">
+          <div class="col-md-6">
+            <ul class="list-unstyled">
+              <li><strong>Starts:</strong> {{ t.scheduledStartTime | date:'fullDate' }} at {{ t.scheduledStartTime | date:'shortTime' }}</li>
+              <li *ngIf="t.actualStartTime"><strong>Actually Started:</strong> {{ t.actualStartTime | date:'medium' }}</li>
+              <li><strong>Registration:</strong> {{ t.registrationOpenTime | date:'short' }} - {{ t.registrationCloseTime | date:'short' }}</li>
+              <li><strong>Entry Fee:</strong> {{ t.entryFee === 0 ? 'Free' : (t.entryFee + ' ' + t.currency) }}</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <ul class="list-unstyled">
+              <li><strong>Prize Pool:</strong> {{ t.prizePool }} {{ t.currency }}</li>
+              <li><strong>Participants:</strong> {{ t.currentParticipants || 0 }} / {{ t.maxParticipants || 'Unlimited' }}</li>
+              <li><strong>Min. Players:</strong> {{ t.minParticipants }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div *ngIf="t.prizePoolDistribution && t.prizePoolDistribution.length > 0" class="mt-3">
+          <h5>Prize Distribution:</h5>
+          <ul class="list-group list-group-flush">
+            <li *ngFor="let rule of t.prizePoolDistribution" class="list-group-item">
+              Rank {{ rule.rank }}:
+              <span *ngIf="rule.percentage">{{ rule.percentage }}% of prize pool</span>
+              <span *ngIf="rule.fixedAmount">{{ rule.fixedAmount }} {{ t.currency }}</span>
+              <span *ngIf="rule.otherReward">{{ rule.otherReward }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div *ngIf="t.rules" class="mt-3">
+          <h5>Rules:</h5>
+          <p>{{ t.rules }}</p>
+        </div>
+
+        <div class="mt-4">
+          <ng-container *ngIf="participants$ | async as currentParticipants">
+            <button *ngIf="t.status === 'registration_open' && !isUserRegistered(currentParticipants)"
+                    class="btn btn-lg btn-success"
+                    (click)="register()"
+                    [disabled]="registrationStatus.isLoading">
+              <span *ngIf="registrationStatus.isLoading" class="spinner-border spinner-border-sm me-1"></span>
+              Register Now ({{ t.entryFee === 0 ? 'Free' : (t.entryFee + ' ' + t.currency) }})
+            </button>
+            <div *ngIf="isUserRegistered(currentParticipants)" class="alert alert-info mt-2">
+              You are already registered for this tournament.
+            </div>
+          </ng-container>
+
+          <div *ngIf="registrationStatus.message"
+               [ngClass]="{'alert-success': registrationStatus.success, 'alert-danger': !registrationStatus.success}"
+               class="alert mt-3">
+            {{ registrationStatus.message }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4" *ngIf="participants$ | async as participantsList">
+        <h3>Participants ({{ participantsList.length }})</h3>
+        <ul *ngIf="participantsList.length > 0" class="list-group">
+            <li *ngFor="let p of participantsList" class="list-group-item">
+                {{ p.displayName || p.userId }} - Status: {{p.status}}
+                 <span *ngIf="p.finalRank"> | Rank: {{p.finalRank}}</span>
+                 <span *ngIf="p.winnings"> | Won: {{p.winnings}} {{p.winningsCurrency}}</span>
+            </li>
+        </ul>
+        <p *ngIf="participantsList.length === 0">No participants yet.</p>
+    </div>
+
+  </ng-container>
+</div>
