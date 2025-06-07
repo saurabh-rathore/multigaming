@@ -8,6 +8,8 @@ import { TournamentListComponent } from './features/tournaments/components/tourn
 import { TournamentDetailComponent } from './features/tournaments/components/tournament-detail/tournament-detail.component';
 import { LeaderboardComponent } from './features/leaderboards/components/leaderboard/leaderboard.component';
 import { FriendListComponent } from './features/social/components/friend-list/friend-list.component';
+import { UserProfileComponent } from './features/user/components/user-profile/user-profile.component';
+import { WalletComponent } from './features/wallet/components/wallet/wallet.component';
 
 export const appRoutes: Routes = [
   { path: 'home', component: HomeComponent },
@@ -21,8 +23,10 @@ export const appRoutes: Routes = [
   { path: 'tournaments/:id', component: TournamentDetailComponent },
 
   { path: 'leaderboards', component: LeaderboardComponent },
-
   { path: 'social/friends', component: FriendListComponent },
+
+  { path: 'profile', component: UserProfileComponent },
+  { path: 'wallet', component: WalletComponent }, // Add canActivate: [AuthGuard] conceptually later
 
   { path: '', redirectTo: '/home', pathMatch: 'full' },
   // { path: '**', component: PageNotFoundComponent } // Placeholder

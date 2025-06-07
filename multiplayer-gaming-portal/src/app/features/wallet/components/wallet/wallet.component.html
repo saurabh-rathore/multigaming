@@ -1,0 +1,89 @@
+<div class="container py-4">
+  <h1 class="mb-4">My Wallet</h1>
+
+  <!-- Wallet Balances Section -->
+  <div *ngIf="isLoadingWallet" class="text-center">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+    <p>Loading wallet balance...</p>
+  </div>
+  <div *ngIf="walletError && !isLoadingWallet" class="alert alert-danger">{{ walletError }}</div>
+
+  <div *ngIf="wallet && !isLoadingWallet" class="card shadow-sm mb-4">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">Account Balances</h5>
+    </div>
+    <div class="card-body">
+      <div class="row text-center">
+        <div class="col-md-6">
+          <h4>Cash Balance</h4>
+          <p class="display-6">{{ wallet.cashBalance | currency:wallet.currency:'symbol':'1.2-2' }}</p>
+        </div>
+        <div class="col-md-6">
+          <h4>Bonus Balance</h4>
+          <p class="display-6">{{ wallet.bonusBalance | currency:wallet.currency:'symbol':'1.2-2' }}</p>
+        </div>
+      </div>
+      <p class="text-muted small text-end mt-2 mb-0">Last updated: {{ wallet.updatedAt | date:'medium' }}</p>
+      <hr>
+      <div class="d-flex justify-content-center gap-2 mt-3">
+        <button class="btn btn-primary" (click)="initiateDeposit()">Deposit Funds</button>
+        <button class="btn btn-outline-secondary" (click)="initiateWithdrawal()">Withdraw Funds</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transaction History Section -->
+  <h2 class="mb-3">Transaction History</h2>
+  <div *ngIf="isLoadingTransactions" class="text-center">
+    <div class="spinner-border text-secondary" role="status"><span class="visually-hidden">Loading...</span></div>
+    <p>Loading transactions...</p>
+  </div>
+  <div *ngIf="transactionsError && !isLoadingTransactions" class="alert alert-danger">{{ transactionsError }}</div>
+
+  <div *ngIf="!isLoadingTransactions && !transactionsError">
+    <div *ngIf="transactions.length > 0; else noTransactions" class="table-responsive">
+      <table class="table table-striped table-hover shadow-sm">
+        <thead class="table-dark">
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Type</th>
+            <th scope="col">Description</th>
+            <th scope="col">Amount</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let tx of transactions">
+            <td>{{ tx.createdAt | date:'short' }}</td>
+            <td><span class="badge" [ngClass]="{
+                'bg-success': tx.type === 'deposit' || tx.type === 'payout' || tx.type === 'bonus_credit' || tx.type === 'manual_credit_cash',
+                'bg-danger': tx.type === 'withdrawal' || tx.type === 'wager' || tx.type === 'bonus_debit' || tx.type === 'manual_debit_cash',
+                'bg-info text-dark': tx.type === 'refund'
+              }">{{ tx.type | titlecase }}</span>
+            </td>
+            <td>{{ tx.description || '-' }}</td>
+            <td>
+              {{ tx.amount | currency:(wallet?.currency || 'INR'):'symbol':'1.2-2' }}
+              <small *ngIf="tx.cashAmountUsed || tx.bonusAmountUsed" class="d-block text-muted">
+                <span *ngIf="tx.cashAmountUsed">Cash: {{ tx.cashAmountUsed | currency:(wallet?.currency || 'INR'):'symbol':'1.2-2' }}</span>
+                <span *ngIf="tx.bonusAmountUsed" class="ms-1">Bonus: {{ tx.bonusAmountUsed | currency:(wallet?.currency || 'INR'):'symbol':'1.2-2' }}</span>
+              </small>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="{
+                'bg-success': tx.status === 'completed',
+                'bg-warning text-dark': tx.status === 'pending' || tx.status === 'processing',
+                'bg-danger': tx.status === 'failed' || tx.status === 'cancelled',
+                'bg-secondary': tx.status === 'reverted'
+              }">{{ tx.status | titlecase }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- Placeholder for pagination if many transactions -->
+    </div>
+    <ng-template #noTransactions>
+      <div class="alert alert-info">No transactions found.</div>
+    </ng-template>
+  </div>
+</div>

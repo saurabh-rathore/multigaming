@@ -1,0 +1,110 @@
+<div class="container py-4">
+  <h1 class="mb-4">User Profile</h1>
+
+  <div *ngIf="isLoading" class="text-center">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+    <p>Loading profile...</p>
+  </div>
+
+  <div *ngIf="error && !isLoading" class="alert alert-danger">{{ error }}</div>
+
+  <div *ngIf="profile && !isLoading" class="card shadow-sm">
+    <div class="card-header">
+      <h5 class="mb-0">Profile Details</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4 text-center mb-3 mb-md-0">
+          <img [src]="editableProfile.avatarUrl || 'assets/images/avatars/default_avatar.png'"
+               onerror="this.src='assets/images/avatars/default_avatar.png'"
+               alt="{{ profile.username || 'User' }} avatar"
+               class="img-thumbnail rounded-circle" style="width: 150px; height: 150px; object-fit: cover;">
+          <div class="mt-2">
+            <label for="avatarUrl" class="form-label small">Avatar URL (Conceptual Edit)</label>
+            <input type="text" class="form-control form-control-sm" id="avatarUrl" name="avatarUrl"
+                   [(ngModel)]="editableProfile.avatarUrl">
+          </div>
+        </div>
+        <div class="col-md-8">
+          <form #profileForm="ngForm" (ngSubmit)="onProfileUpdate()">
+            <div class="mb-3 row">
+              <label class="col-sm-3 col-form-label">User ID:</label>
+              <div class="col-sm-9">
+                <p class="form-control-plaintext">{{ profile.userId }}</p>
+              </div>
+            </div>
+            <div class="mb-3 row">
+              <label class="col-sm-3 col-form-label">Email:</label>
+              <div class="col-sm-9">
+                <p class="form-control-plaintext">{{ profile.email }}</p>
+              </div>
+            </div>
+             <div class="mb-3 row">
+              <label for="username" class="col-sm-3 col-form-label">Username:</label>
+              <div class="col-sm-9">
+                <input type="text" class="form-control" id="username" name="username"
+                       [(ngModel)]="editableProfile.username">
+              </div>
+            </div>
+            <div class="mb-3 row">
+              <label for="firstName" class="col-sm-3 col-form-label">First Name:</label>
+              <div class="col-sm-9">
+                <input type="text" class="form-control" id="firstName" name="firstName"
+                       [(ngModel)]="editableProfile.firstName">
+              </div>
+            </div>
+            <div class="mb-3 row">
+              <label for="lastName" class="col-sm-3 col-form-label">Last Name:</label>
+              <div class="col-sm-9">
+                <input type="text" class="form-control" id="lastName" name="lastName"
+                       [(ngModel)]="editableProfile.lastName">
+              </div>
+            </div>
+            <div class="mb-3 row">
+              <label for="phone" class="col-sm-3 col-form-label">Phone:</label>
+              <div class="col-sm-9">
+                <input type="tel" class="form-control" id="phone" name="phone"
+                       [(ngModel)]="editableProfile.phone">
+              </div>
+            </div>
+            <div class="mb-3 row">
+              <label class="col-sm-3 col-form-label">KYC Status:</label>
+              <div class="col-sm-9">
+                <p class="form-control-plaintext">
+                  <span class="badge"
+                        [ngClass]="{
+                          'bg-success': profile.kycStatus === 'verified',
+                          'bg-warning text-dark': profile.kycStatus === 'pending_verification',
+                          'bg-danger': profile.kycStatus === 'rejected',
+                          'bg-secondary': profile.kycStatus === 'not_started'
+                        }">
+                    {{ profile.kycStatus | titlecase }}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div class="mb-3 row">
+              <label class="col-sm-3 col-form-label">Registered:</label>
+              <div class="col-sm-9">
+                <p class="form-control-plaintext">{{ profile.registrationDate | date:'longDate' }}</p>
+              </div>
+            </div>
+
+            <div *ngIf="updateStatus.message"
+                 [ngClass]="{'alert-success': updateStatus.success, 'alert-danger': !updateStatus.success}"
+                 class="alert mt-3">
+              {{ updateStatus.message }}
+            </div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="submit" class="btn btn-primary" [disabled]="updateStatus.isLoading">
+                <span *ngIf="updateStatus.isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                {{ updateStatus.isLoading ? 'Updating...' : 'Update Profile' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
