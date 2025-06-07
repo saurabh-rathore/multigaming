@@ -7,6 +7,7 @@ import { GameDetailComponent } from './features/games/components/game-detail/gam
 import { TournamentListComponent } from './features/tournaments/components/tournament-list/tournament-list.component';
 import { TournamentDetailComponent } from './features/tournaments/components/tournament-detail/tournament-detail.component';
 import { LeaderboardComponent } from './features/leaderboards/components/leaderboard/leaderboard.component';
+import { FriendListComponent } from './features/social/components/friend-list/friend-list.component';
 
 export const appRoutes: Routes = [
   { path: 'home', component: HomeComponent },
@@ -20,6 +21,8 @@ export const appRoutes: Routes = [
   { path: 'tournaments/:id', component: TournamentDetailComponent },
 
   { path: 'leaderboards', component: LeaderboardComponent },
+
+  { path: 'social/friends', component: FriendListComponent },
 
   { path: '', redirectTo: '/home', pathMatch: 'full' },
   // { path: '**', component: PageNotFoundComponent } // Placeholder

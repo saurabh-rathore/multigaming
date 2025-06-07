@@ -1,0 +1,10 @@
+<div class="simple-chat-container border rounded shadow-sm" style="max-width: 400px;">
+  <div class="chat-header bg-light p-2 border-bottom">
+    <h6 class="mb-0">Chat (Room: {{ roomId }}) - Conceptual</h6>
+  </div>
+  <div *ngIf="isLoading" class="text-center p-3"><div class="spinner-border spinner-border-sm"></div> Loading messages...</div>
+  <div *ngIf="error" class="alert alert-warning small m-2">{{error}}</div>
+
+  <app-chat-display [messages]="messages" [currentUserId]="currentUserId"></app-chat-display>
+  <app-chat-input (messageSent)="handleSendMessage($event)"></app-chat-input>
+</div>

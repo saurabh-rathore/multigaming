@@ -1,0 +1,58 @@
+<div class="container py-4">
+  <h1 class="mb-4">Friends</h1>
+
+  <div *ngIf="isLoadingFriends || isLoadingGames" class="text-center">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p>Loading data...</p>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger">{{ error }}</div>
+
+  <div *ngIf="!isLoadingFriends && !isLoadingGames && !error">
+    <div class="mb-3">
+      <label for="gameSelectInvite" class="form-label">Select Game to Invite:</label>
+      <select id="gameSelectInvite" class="form-select w-auto d-inline-block" [(ngModel)]="selectedGameIdToInvite"
+              *ngIf="(availableGames$ | async) as games">
+        <option *ngIf="!games || games.length === 0" value="" disabled>No games loaded</option>
+        <option *ngFor="let game of games" [value]="game.gameId">{{ game.name }}</option>
+      </select>
+      <span *ngIf="!(availableGames$ | async) && !isLoadingGames" class="ms-2 text-muted">Could not load games for invite.</span>
+    </div>
+
+    <div *ngIf="(friends$ | async) as friends; else noFriends">
+      <div *ngIf="friends.length === 0" class="alert alert-info">
+        You haven't added any friends yet.
+      </div>
+      <ul class="list-group">
+        <li *ngFor="let friend of friends" class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <img [src]="friend.avatarUrl || 'assets/images/avatars/default_avatar.png'"
+                 onerror="this.src='assets/images/avatars/default_avatar.png'"
+                 alt="{{ friend.displayName }} avatar" class="rounded-circle me-2" style="width: 40px; height: 40px;">
+            <strong>{{ friend.displayName }}</strong>
+            <span class="badge ms-2" [ngClass]="{'bg-success': friend.isOnline, 'bg-secondary': !friend.isOnline}">
+              {{ friend.lastSeen }}
+            </span>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-primary"
+                    (click)="inviteFriend(friend)"
+                    [disabled]="!selectedGameIdToInvite || inviteStatus[friend.userId]?.isLoading">
+              <span *ngIf="inviteStatus[friend.userId]?.isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Invite to Play
+            </button>
+            <div *ngIf="inviteStatus[friend.userId]?.message" class="form-text small mt-1"
+                 [ngClass]="{'text-success': inviteStatus[friend.userId]?.success, 'text-danger': !inviteStatus[friend.userId]?.success}">
+              {{ inviteStatus[friend.userId]?.message }}
+            </div>
+          </div>
+        </li>
+      </ul>
+    </ng-template>
+    <ng-template #noFriends>
+      <p *ngIf="!isLoadingFriends">No friends to display.</p>
+    </ng-template>
+  </div>
+</div>

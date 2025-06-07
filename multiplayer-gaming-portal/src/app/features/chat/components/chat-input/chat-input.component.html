@@ -1,0 +1,14 @@
+<div class="chat-input p-2 border-top">
+  <form (ngSubmit)="sendMessage()" class="d-flex">
+    <input type="text" class="form-control me-2"
+           placeholder="{{ isDisabled ? 'Chat disabled (UI placeholder)' : 'Type your message...' }}"
+           [(ngModel)]="messageText" name="messageText"
+           [disabled]="isDisabled">
+    <button type="submit" class="btn btn-primary" [disabled]="isDisabled || !messageText.trim()">
+      Send
+    </button>
+  </form>
+  <p *ngIf="isDisabled" class="form-text text-muted small mt-1">
+    Note: Chat functionality is a UI placeholder and not connected to a live backend.
+  </p>
+</div>

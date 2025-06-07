@@ -1,0 +1,19 @@
+<div class="chat-messages p-3" style="height: 200px; overflow-y: auto; border: 1px solid #ccc; background-color: #f8f9fa;">
+  <div *ngIf="messages.length === 0" class="text-muted text-center">
+    No messages yet. Start the conversation!
+  </div>
+  <div *ngFor="let msg of messages" class="mb-2"
+       [ngClass]="{'text-end': msg.isOwnMessage || msg.userId === currentUserId}">
+    <div class="d-inline-block p-2 rounded"
+         [ngClass]="{'bg-primary text-white': msg.isOwnMessage || msg.userId === currentUserId, 'bg-light text-dark': !msg.isOwnMessage && msg.userId !== currentUserId}"
+         style="max-width: 75%;">
+      <div class="fw-bold small">{{ msg.displayName }}</div>
+      <div>{{ msg.text }}</div>
+      <div class="text-muted small mt-1" style="font-size: 0.75em;">
+        {{ msg.timestamp | date:'shortTime' }}
+      </div>
+    </div>
+  </div>
+  <!-- Placeholder for typing indicator -->
+  <!-- <div *ngIf="isTyping" class="text-muted small"><em>Someone is typing...</em></div> -->
+</div>
