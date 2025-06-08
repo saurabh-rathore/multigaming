@@ -1,0 +1,294 @@
+openapi: 3.1.0
+info:
+  title: Authentication Service API
+  version: v1.0.0
+  description: >
+    API for user authentication, including registration, login, and token management
+    for the Multiplayer Gaming Platform.
+  contact:
+    name: API Support
+    url: http://example.com/support
+    email: support@example.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:3001/v1 # Port from auth-service/src/main.ts (conceptual)
+    description: Local development server for Auth Service
+  - url: https://api.example.com/v1/auth # Placeholder for production
+
+components:
+  schemas:
+    UserRegistrationRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address for registration.
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          description: User's password (min 6 characters).
+          example: "Str0ngP@ss!"
+          minLength: 6
+        phone:
+          type: string
+          description: User's phone number (optional).
+          example: "+11234567890"
+
+    UserLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address for login.
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          description: User's password.
+          example: "Str0ngP@ss!"
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid # Conceptual, service uses generateId() which is not strictly UUID yet
+          description: Unique identifier for the user.
+          example: "id_1673834738_abc123"
+        email:
+          type: string
+          format: email
+          description: User's email address.
+          example: user@example.com
+        phone:
+          type: string
+          nullable: true
+          description: User's phone number.
+          example: "+11234567890"
+        status:
+          type: string
+          enum: [pending_verification, active, suspended, banned]
+          description: Current status of the user account.
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of user creation.
+          example: "2024-07-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of last user update.
+          example: "2024-07-15T10:30:00Z"
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token for subsequent authenticated requests.
+          example: "placeholder_jwt_for_id_1673834738_abc123_session_id_1673834739_def456"
+        user:
+          $ref: '#/components/schemas/UserResponse'
+          description: Details of the authenticated user.
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: The refresh token used to obtain a new access token.
+          example: "mock_refresh_token_value_longer_and_different"
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        statusCode: # This is often part of HTTP status, but can be in body too
+          type: integer
+          format: int32
+          description: HTTP status code.
+          example: 400
+        message:
+          type: string
+          description: A human-readable error message.
+          example: "Email and password are required."
+        error: # Optional more specific error code/type
+          type: string
+          description: A short error string code (e.g., 'VALIDATION_ERROR', 'UNAUTHORIZED').
+          example: "VALIDATION_ERROR"
+
+  securitySchemes:
+    BearerAuth: # Can be used to secure endpoints like /refresh or /me
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        JWT Bearer token for authentication. Token is obtained via the login endpoint.
+        Include it in the Authorization header as 'Bearer {token}'.
+
+# Global security (can be overridden at operation level)
+# For Auth service, most endpoints are public, except potentially /refresh or a /me endpoint.
+# security:
+#   - BearerAuth: [] # Applies BearerAuth to all operations unless overridden
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: Creates a new user account with the provided email, password, and optional phone number.
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        description: User registration details.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+      responses:
+        '201': # Created
+          description: User registered successfully. Returns the new user's details (excluding password).
+          content:
+            application/json:
+              schema:
+                # The service returns User (without password_hash), not AuthSuccessResponse
+                $ref: '#/components/schemas/UserResponse'
+        '400': # Bad Request
+          description: Invalid input (e.g., missing fields, password too short, invalid email format).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                MissingFields:
+                  value: { statusCode: 400, message: "Email and password are required.", error: "VALIDATION_ERROR" }
+                InvalidPassword:
+                  value: { statusCode: 400, message: "Password must be at least 6 characters long.", error: "VALIDATION_ERROR" }
+        '409': # Conflict
+          description: User with this email already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                value: { statusCode: 409, message: "User with this email already exists.", error: "CONFLICT_ERROR" }
+        '500': # Internal Server Error
+          description: An unexpected error occurred on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                value: { statusCode: 500, message: "Internal server error." }
+
+  /auth/login:
+    post:
+      summary: Log in an existing user
+      description: Authenticates a user with their email and password, returning a JWT and user details upon success.
+      operationId: loginUser
+      tags:
+        - Authentication
+      requestBody:
+        description: User login credentials.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+      responses:
+        '200': # OK
+          description: Login successful. Returns JWT and user details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '400': # Bad Request
+          description: Invalid input (e.g., missing fields).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                value: { statusCode: 400, message: "Email and password are required.", error: "VALIDATION_ERROR" }
+        '401': # Unauthorized
+          description: Invalid credentials or user account not active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InvalidCredentials:
+                  value: { statusCode: 401, message: "Invalid email or password.", error: "UNAUTHORIZED" }
+                AccountNotActive:
+                  value: { statusCode: 401, message: "User account is not active.", error: "ACCOUNT_INACTIVE" }
+        '500': # Internal Server Error
+          description: An unexpected error occurred on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                value: { statusCode: 500, message: "Internal server error." }
+
+  /auth/refresh: # Conceptual endpoint
+    post:
+      summary: Refresh access token
+      description: Obtains a new JWT access token using a valid refresh token.
+      operationId: refreshToken
+      tags:
+        - Authentication
+      security: # This endpoint would require the refresh token, but that's usually in the body, not Bearer.
+                # Or, if it's a system that expects an existing (possibly expired) access token to authorize refresh.
+                # For simplicity, we'll assume refresh token is passed in body and no Bearer token needed for this specific call.
+                # If an old access token IS needed for some reason, then:
+        - BearerAuth: [] # Example if old token needed. Otherwise remove 'security' for this path.
+      requestBody:
+        description: Refresh token.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200': # OK
+          description: New access token generated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401': # Unauthorized
+          description: Invalid or expired refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                value: { statusCode: 401, message: "Invalid or expired refresh token.", error: "INVALID_REFRESH_TOKEN" }
+        '500': # Internal Server Error
+          description: An unexpected error occurred on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# Can also add tags definition for better organization in UI tools
+tags:
+  - name: Authentication
+    description: Operations related to user authentication, registration, and token management.
