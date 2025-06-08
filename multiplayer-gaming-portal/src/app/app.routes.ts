@@ -10,6 +10,7 @@ import { LeaderboardComponent } from './features/leaderboards/components/leaderb
 import { FriendListComponent } from './features/social/components/friend-list/friend-list.component';
 import { UserProfileComponent } from './features/user/components/user-profile/user-profile.component';
 import { WalletComponent } from './features/wallet/components/wallet/wallet.component';
+import { LudoGameComponent } from './features/games/components/ludo-game/ludo-game.component'; // Import LudoGameComponent
 
 export const appRoutes: Routes = [
   { path: 'home', component: HomeComponent },
@@ -17,7 +18,9 @@ export const appRoutes: Routes = [
   { path: 'register', component: RegistrationComponent },
 
   { path: 'games', component: GameLobbyComponent },
-  { path: 'games/:id', component: GameDetailComponent },
+  { path: 'games/ludo/:roomId', component: LudoGameComponent }, // Route for Ludo game room
+  { path: 'games/:id', component: GameDetailComponent }, // Generic game detail (Ludo might use its own or this)
+
 
   { path: 'tournaments', component: TournamentListComponent },
   { path: 'tournaments/:id', component: TournamentDetailComponent },
@@ -26,7 +29,7 @@ export const appRoutes: Routes = [
   { path: 'social/friends', component: FriendListComponent },
 
   { path: 'profile', component: UserProfileComponent },
-  { path: 'wallet', component: WalletComponent }, // Add canActivate: [AuthGuard] conceptually later
+  { path: 'wallet', component: WalletComponent },
 
   { path: '', redirectTo: '/home', pathMatch: 'full' },
   // { path: '**', component: PageNotFoundComponent } // Placeholder

@@ -1,0 +1,70 @@
+<div class="container py-4 ludo-game-container">
+  <h2 class="mb-3">Ludo Game Room: {{ roomId || 'N/A' }}</h2>
+
+  <div *ngIf="isLoading" class="text-center my-5">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+    <p>Loading Ludo game...</p>
+  </div>
+  <div *ngIf="error && !isLoading" class="alert alert-danger">{{ error }}</div>
+
+  <div *ngIf="gameState && !isLoading" class="ludo-board-conceptual">
+    <h4 class="mb-3">Game State: {{ gameState.gamePhase | titlecase }}</h4>
+
+    <!-- Current Player & Dice Roll -->
+    <div class="alert alert-info">
+      <div *ngIf="gameState.gamePhase !== 'finished'">
+        Current Player: <strong>{{ gameState.players.find(p => p.userId === gameState.currentPlayerUserId)?.displayName }} ({{ gameState.players.find(p => p.userId === gameState.currentPlayerUserId)?.color | titlecase }})</strong>
+      </div>
+      <div *ngIf="gameState.currentDiceRoll">
+        Last Dice Roll: <strong class="fs-4">{{ gameState.currentDiceRoll }}</strong>
+      </div>
+      <div *ngIf="gameState.winnerUserId">
+        <strong>Game Over! Winner: {{ gameState.players.find(p => p.userId === gameState.winnerUserId)?.displayName }}!</strong>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions mb-3" *ngIf="isMyTurn() && gameState.gamePhase !== 'finished'">
+      <button class="btn btn-lg btn-success me-2" (click)="rollDice()" [disabled]="!canRollDice()">
+        <span *ngIf="actionInProgress && gameState.gamePhase === 'dice_to_roll'" class="spinner-border spinner-border-sm"></span>
+        Roll Dice
+      </button>
+      <em *ngIf="gameState.gamePhase === 'piece_to_move'" class="text-muted">Click on a piece to move it.</em>
+    </div>
+     <div *ngIf="!isMyTurn() && gameState.gamePhase !== 'finished'" class="alert alert-secondary small">
+        Waiting for opponent...
+    </div>
+
+
+    <!-- Conceptual Board & Pieces Display -->
+    <div class="board-area border p-3 mb-3" style="background-color: #f0f0f0;">
+      <h5>Conceptual Ludo Board</h5>
+      <p class="small text-muted">(This is a placeholder, not a functional game board)</p>
+      <div *ngFor="let player of gameState.players" class="player-area mb-2 p-2 rounded" [ngStyle]="{'background-color': player.color, 'color': player.color === 'yellow' ? 'black' : 'white'}">
+        <strong>Player: {{ player.displayName }} ({{ player.color | titlecase }})</strong>
+        <div class="pieces d-flex flex-wrap">
+          <div *ngFor="let piece of player.pieces" class="piece m-1 p-2 border rounded-circle text-center"
+               [ngClass]="{'piece-clickable': canMovePiece(piece)}"
+               (click)="canMovePiece(piece) && movePiece(piece.pieceId)"
+               title="ID: {{piece.pieceId}}, Pos: {{piece.position}}, State: {{piece.state}}">
+            {{ piece.pieceId.split('_')[1] }} <!-- Show piece number -->
+            <div class="small">{{piece.state}} @ {{piece.position}}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Turn Log -->
+    <div class="turn-log mt-4">
+      <h5>Turn Log:</h5>
+      <ul class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
+        <li *ngFor="let logEntry of gameState.turnLog.slice().reverse()" class="list-group-item small py-1">{{ logEntry }}</li>
+      </ul>
+    </div>
+  </div>
+  <div *ngIf="!gameState && !isLoading && !error" class="alert alert-warning">
+    Ludo game data could not be loaded or initialized for room: {{ roomId }}.
+  </div>
+   <hr>
+  <a routerLink="/games" class="btn btn-sm btn-outline-secondary mt-3">&laquo; Back to Game Lobby</a>
+</div>
