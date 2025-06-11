@@ -1,140 +1,188 @@
-import { Game, GameResult, GameResultRequestBody } from '../types/game.types'; // Existing types
+import { Game, GameResult, GameResultRequestBody } from '../types/game.types';
 import {
     LudoGameState, LudoPlayer, LudoPiece, LudoColor, LudoPieceState, LudoGamePhase,
     CreateLudoGameRequest, LudoRollDiceRequest, LudoMovePieceRequest
-} from '../types/ludo.types'; // New Ludo types
+} from '../types/ludo.types';
 import { generateId } from '../utils/helpers';
+import pool from '../config/db.config'; // Import the conceptual MySQL pool for GameEngine
 
-// --- Mock Data Store for Generic Games & Results (from previous setup) ---
-const db = {
-  games: new Map<string, Game>(), // Generic game metadata
-  game_results: new Map<string, GameResult>(), // Generic game results
-};
+// Define a type for what a DB row might look like
+type GameRow = Game & { [key: string]: any };
+type GameResultRow = GameResult & { [key: string]: any };
 
-// Pre-populate with some mock generic games (from previous setup)
-const mockGame1_meta: Game = {
-  game_id: 'ludo_masters_meta_id', name: 'Ludo Masters', description: 'Classic Ludo game', genre: 'Board',
-  min_players: 2, max_players: 4, is_active: true, stake_options: [{amount: 10, currency: "INR"}],
-  created_at: new Date(), updated_at: new Date()
-};
-// Add more mock games if they were part of the original setup
-db.games.set(mockGame1_meta.game_id, mockGame1_meta);
-// Add Ludo Game ID to metadata if not already present
-const LUDO_GAME_ID_CONST = 'ludo_game_official_id'; // Static ID for Ludo game type
-if (!db.games.has(LUDO_GAME_ID_CONST)) {
-    db.games.set(LUDO_GAME_ID_CONST, {
-        game_id: LUDO_GAME_ID_CONST, name: "Ludo Classic",
-        description: "The game of Ludo.", genre: "Board",
-        min_players: 2, max_players: 4, is_active: true,
-        created_at: new Date(), updatedAt: new Date()
-    });
+// Type for OkPacket result from INSERT/UPDATE/DELETE
+interface OkPacket {
+  affectedRows: number;
+  insertId?: number | string;
 }
 
-
-// --- Mock Data Store for Active Ludo Game States ---
+// --- Mock Data Store for Active Ludo Game States (remains in-memory) ---
 const activeLudoGames = new Map<string, LudoGameState>(); // Key: roomId
+const LUDO_GAME_ID_CONST = 'ludo_game_official_id'; // Static ID for Ludo game type (ensure this exists in DB)
+
 
 export class GameEngineService {
-  // === Existing Generic Game Metadata & Results Methods ===
+
+  // Helper to ensure Ludo metadata exists in DB (conceptual, run at startup or on-demand)
+  async ensureLudoGameMetadataExists(): Promise<void> {
+    const [rows]: [GameRow[], any] = await pool.query('SELECT game_id FROM games WHERE game_id = ?', [LUDO_GAME_ID_CONST]) as [GameRow[], any];
+    if (rows.length === 0) {
+      const ludoMeta: Game = {
+        game_id: LUDO_GAME_ID_CONST, name: "Ludo Classic",
+        description: "The classic game of Ludo.", genre: "Board",
+        min_players: 2, max_players: 4, is_active: true,
+        stake_options: JSON.stringify([{amount: 10, currency: "INR"}, {amount: 50, currency: "INR"}]), // Store as JSON string
+        created_at: new Date(), updatedAt: new Date()
+      };
+      const insertSql = `INSERT INTO games (game_id, name, description, genre, min_players, max_players, is_active, stake_options, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      await pool.query(insertSql, [
+          ludoMeta.game_id, ludoMeta.name, ludoMeta.description, ludoMeta.genre,
+          ludoMeta.min_players, ludoMeta.max_players, ludoMeta.is_active,
+          ludoMeta.stake_options, ludoMeta.created_at, ludoMeta.updated_at
+      ]);
+      console.log('[GameEngineService-DB] Ensured Ludo Classic metadata exists in DB.');
+    }
+  }
+  constructor() {
+      // Conceptually ensure essential game metadata like Ludo exists when service starts
+      // this.ensureLudoGameMetadataExists(); // This would be called in a real init phase
+  }
+
+
+  // === Generic Game Metadata & Results Methods (Now using DB) ===
   async listActiveGames(): Promise<Game[]> {
-    console.log('[GameEngineService] Listing active games (metadata).');
-    return Array.from(db.games.values()).filter(game => game.is_active);
+    console.log('[GameEngineService-DB] Listing active games (metadata).');
+    const sql = 'SELECT * FROM games WHERE is_active = TRUE';
+    const [rows]: [GameRow[], any] = await pool.query(sql) as [GameRow[], any];
+    return rows.map(row => ({ // Convert JSON string back to object if needed
+        ...row,
+        stake_options: typeof row.stake_options === 'string' ? JSON.parse(row.stake_options) : row.stake_options
+    })) as Game[];
   }
 
   async getGameById(gameId: string): Promise<Game | undefined> {
-    console.log(`[GameEngineService] Getting game metadata by ID: ${gameId}`);
-    return db.games.get(gameId);
+    console.log(`[GameEngineService-DB] Getting game metadata by ID: ${gameId}`);
+    const sql = 'SELECT * FROM games WHERE game_id = ? LIMIT 1';
+    const [rows]: [GameRow[], any] = await pool.query(sql, [gameId]) as [GameRow[], any];
+    if (rows.length > 0) {
+      const row = rows[0];
+      return {
+        ...row,
+        stake_options: typeof row.stake_options === 'string' ? JSON.parse(row.stake_options) : row.stake_options
+      } as Game;
+    }
+    return undefined;
   }
 
   async recordGameResult(gameId: string, data: GameResultRequestBody): Promise<GameResult> {
-    // ... (implementation from previous step for generic results) ...
-    console.log(`[GameEngineService] Recording generic result for game ${gameId}, user ${data.user_id}`);
-    const game = db.games.get(gameId);
+    console.log(`[GameEngineService-DB] Recording result for game ${gameId}, user ${data.user_id}`);
+
+    // Validate gameId exists and is active
+    const game = await this.getGameById(gameId);
     if (!game) throw new Error(`Game with ID ${gameId} not found.`);
-    if (!game.is_active) throw new Error(`Game with ID ${gameId} is not active.`);
+    if (!game.is_active) throw new Error(`Game with ID ${gameId} is not active and cannot accept results.`);
+
+    // Check for duplicate result (user_id, room_id, game_id)
+    const checkDuplicateSql = 'SELECT result_id FROM game_results WHERE game_id = ? AND room_id = ? AND user_id = ? LIMIT 1';
+    const [existingResults]: [GameResultRow[], any] = await pool.query(checkDuplicateSql, [gameId, data.room_id, data.user_id]) as [GameResultRow[], any];
+    if (existingResults.length > 0) {
+        throw new Error(`Duplicate game result for user ${data.user_id} in room ${data.room_id} for game ${gameId}.`);
+    }
+
     const resultId = generateId('result');
-    const newResult: GameResult = { /* ... as before ... */
+    const now = new Date();
+    const newResult: GameResult = {
         result_id: resultId, game_id: gameId, room_id: data.room_id, user_id: data.user_id,
-        score: data.score, rank: data.rank, winnings: data.winnings, recorded_at: new Date()
+        score: data.score, rank: data.rank, winnings: data.winnings,
+        game_specific_data: data.game_specific_data, // Assumed to be object, will be stringified by driver for JSONB
+        recorded_at: now
     };
-    db.game_results.set(resultId, newResult);
+
+    const insertSql = `
+      INSERT INTO game_results (result_id, game_id, room_id, user_id, score, rank, winnings, game_specific_data, recorded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const params = [
+        newResult.result_id, newResult.game_id, newResult.room_id, newResult.user_id,
+        newResult.score, newResult.rank || null, newResult.winnings || null,
+        newResult.game_specific_data ? JSON.stringify(newResult.game_specific_data) : null, // Stringify for JSON/JSONB
+        newResult.recorded_at
+    ];
+    const [result]: [OkPacket, any] = await pool.query(insertSql, params) as [OkPacket, any];
+    if (result.affectedRows !== 1) {
+        throw new Error('Failed to record game result in database.');
+    }
+    console.log(`[GameEngineService-DB] Result ${resultId} recorded.`);
     return newResult;
   }
+
   async getResultsByRoom(roomId: string): Promise<GameResult[]> {
-      return Array.from(db.game_results.values()).filter(r => r.room_id === roomId);
+    console.log(`[GameEngineService-DB] Getting results for room: ${roomId}`);
+    const sql = 'SELECT * FROM game_results WHERE room_id = ? ORDER BY rank ASC, score DESC'; // Example sort
+    const [rows]: [GameResultRow[], any] = await pool.query(sql, [roomId]) as [GameResultRow[], any];
+    return rows.map(row => ({ // Parse JSONB if needed
+        ...row,
+        game_specific_data: typeof row.game_specific_data === 'string' ? JSON.parse(row.game_specific_data) : row.game_specific_data
+    })) as GameResult[];
   }
 
 
-  // === Ludo Specific Game Logic Methods (Conceptual) ===
+  // === Ludo Specific Game Logic Methods (Still using in-memory 'activeLudoGames') ===
 
   private initializeLudoPieces(color: LudoColor, count: number = 4): LudoPiece[] {
     const pieces: LudoPiece[] = [];
     for (let i = 0; i < count; i++) {
       pieces.push({
-        pieceId: `${color}_${i + 1}`,
-        color: color,
-        position: -1, // Start in home yard (conceptual position)
-        state: 'home_yard'
+        pieceId: `${color}_${i + 1}`, color: color, position: -1, state: 'home_yard'
       });
     }
     return pieces;
   }
 
-  async startLudoGame(roomId: string, userIds: string[], gameId: string = LUDO_GAME_ID_CONST): Promise<LudoGameState> {
-    console.log(`[GameEngineService] Starting Ludo game in room ${roomId} for users: ${userIds.join(', ')}`);
+  async startLudoGame(roomId: string, userIds: string[]): Promise<LudoGameState> { // Removed gameId param, uses LUDO_GAME_ID_CONST
+    // Conceptually ensure Ludo metadata is in DB first if not done at service init
+    // await this.ensureLudoGameMetadataExists();
+
+    console.log(`[GameEngineService-Ludo] Starting Ludo game in room ${roomId} for users: ${userIds.join(', ')}`);
     if (activeLudoGames.has(roomId)) {
       throw new Error(`Ludo game already active in room ${roomId}.`);
     }
-    if (userIds.length < 2 || userIds.length > 4) {
-      throw new Error('Ludo requires 2 to 4 players.');
+    const ludoMeta = await this.getGameById(LUDO_GAME_ID_CONST);
+    if(!ludoMeta) throw new Error("Ludo game metadata not found. Cannot start game.");
+    if (userIds.length < ludoMeta.min_players || userIds.length > ludoMeta.max_players) {
+      throw new Error(`Ludo requires ${ludoMeta.min_players} to ${ludoMeta.max_players} players.`);
     }
 
     const colors: LudoColor[] = ['red', 'green', 'yellow', 'blue'];
     const players: LudoPlayer[] = userIds.map((uid, index) => ({
-      userId: uid,
-      color: colors[index],
-      pieces: this.initializeLudoPieces(colors[index]),
-      hasRolledSixRecently: false,
-      consecutiveSixes: 0,
+      userId: uid, color: colors[index], pieces: this.initializeLudoPieces(colors[index]),
+      hasRolledSixRecently: false, consecutiveSixes: 0, displayName: `Player ${index+1}` // Placeholder
     }));
 
     const initialGameState: LudoGameState = {
-      roomId,
-      gameId, // Static Ludo game ID from metadata
-      players,
-      currentPlayerUserId: players[0].userId, // First player starts
-      gamePhase: 'dice_to_roll',
-      turnLog: [`Game started. ${players[0].userId} (Color: ${players[0].color}) to roll.`],
-      createdAt: new Date().toISOString(),
-      startedAt: new Date().toISOString(),
-      lastMoveAt: new Date().toISOString(),
+      roomId, gameId: LUDO_GAME_ID_CONST, players,
+      currentPlayerUserId: players[0].userId, gamePhase: 'dice_to_roll',
+      turnLog: [`Game started. ${players[0].displayName} (${players[0].color}) to roll.`],
+      createdAt: new Date().toISOString(), startedAt: new Date().toISOString(), lastMoveAt: new Date().toISOString(),
     };
     activeLudoGames.set(roomId, initialGameState);
-    return { ...initialGameState }; // Return a copy
+    return { ...initialGameState };
   }
 
   async rollDiceForLudo(roomId: string, userId: string): Promise<LudoGameState> {
     const gameState = activeLudoGames.get(roomId);
+    // ... (rest of Ludo roll dice logic remains the same, using in-memory gameState) ...
     if (!gameState) throw new Error(`Ludo game not found in room ${roomId}.`);
     if (gameState.currentPlayerUserId !== userId) throw new Error(`Not player ${userId}'s turn.`);
-    if (gameState.gamePhase !== 'dice_to_roll') throw new Error(`Not the time to roll dice. Current phase: ${gameState.gamePhase}`);
+    if (gameState.gamePhase !== 'dice_to_roll') throw new Error(`Not the time to roll dice. Phase: ${gameState.gamePhase}`);
 
     const diceRoll = Math.floor(Math.random() * 6) + 1;
     gameState.currentDiceRoll = diceRoll;
     gameState.lastMoveAt = new Date().toISOString();
-
-    // Simplified logic:
     gameState.gamePhase = 'piece_to_move';
-    gameState.turnLog.push(`${userId} rolled a ${diceRoll}.`);
+    gameState.turnLog.push(`${gameState.players.find(p=>p.userId === userId)?.displayName} rolled a ${diceRoll}.`);
 
-    // Placeholder for "can any piece move?" logic
-    const canMove = true; // Assume player can always move for simplicity here
-    if (!canMove) {
-        gameState.turnLog.push(`${userId} has no valid moves with ${diceRoll}.`);
-        // gameState.gamePhase = 'turn_ended'; // And then switch player
-    }
-
-    // Placeholder for "rolled six" logic
     const playerState = gameState.players.find(p => p.userId === userId);
     if (playerState) {
         if (diceRoll === 6) {
@@ -142,96 +190,68 @@ export class GameEngineService {
             playerState.consecutiveSixes = (playerState.consecutiveSixes || 0) + 1;
             if (playerState.consecutiveSixes === 3) {
                 gameState.turnLog.push(`${userId} rolled three consecutive sixes. Turn skipped.`);
-                // gameState.gamePhase = 'turn_ended'; // And switch player
-                playerState.consecutiveSixes = 0; // Reset
-            } else {
-                 // gameState.turnLog.push(`${userId} rolls again.`); // Stays 'piece_to_move' or back to 'dice_to_roll' for same player
+                // Simplified: switch to next player directly
+                const currentPlayerIndex = gameState.players.findIndex(p => p.userId === userId);
+                const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
+                gameState.currentPlayerUserId = gameState.players[nextPlayerIndex].userId;
+                gameState.gamePhase = 'dice_to_roll';
+                gameState.currentDiceRoll = undefined;
+                playerState.consecutiveSixes = 0;
+                playerState.hasRolledSixRecently = false;
+                gameState.turnLog.push(`Turn ended due to 3 sixes. ${gameState.currentPlayerUserId} to play.`);
             }
+            // If not 3 sixes, player continues (phase is already piece_to_move, or will roll again after moving)
         } else {
             playerState.hasRolledSixRecently = false;
             playerState.consecutiveSixes = 0;
         }
     }
-
-
-    activeLudoGames.set(roomId, gameState);
+    activeLudoGames.set(roomId, gameState); // Save updated state
     return { ...gameState };
   }
 
   async moveLudoPiece(roomId: string, userId: string, pieceId: string, stepsToTake?: number): Promise<LudoGameState> {
     const gameState = activeLudoGames.get(roomId);
+    // ... (rest of Ludo move piece logic remains the same, using in-memory gameState) ...
     if (!gameState) throw new Error(`Ludo game not found in room ${roomId}.`);
     if (gameState.currentPlayerUserId !== userId) throw new Error(`Not player ${userId}'s turn.`);
-    if (gameState.gamePhase !== 'piece_to_move') throw new Error(`Not the time to move a piece. Phase: ${gameState.gamePhase}`);
-    if (!gameState.currentDiceRoll && !stepsToTake) throw new Error('No dice roll available or steps provided to move piece.');
+    if (gameState.gamePhase !== 'piece_to_move') throw new Error(`Not the time to move. Phase: ${gameState.gamePhase}`);
+    if (!gameState.currentDiceRoll && !stepsToTake) throw new Error('No dice roll or steps provided.');
 
     const player = gameState.players.find(p => p.userId === userId);
-    if (!player) throw new Error('Player not found in game state.');
+    if (!player) throw new Error('Player not found.');
     const piece = player.pieces.find(p => p.pieceId === pieceId);
-    if (!piece) throw new Error(`Piece ${pieceId} not found for player ${userId}.`);
+    if (!piece) throw new Error(`Piece ${pieceId} not found.`);
 
-    const steps = stepsToTake || gameState.currentDiceRoll!; // Use currentDiceRoll if stepsToTake not provided
-
-    // --- Highly simplified placeholder logic for piece movement ---
-    // This does NOT implement actual Ludo board rules, safe zones, captures, home entry, etc.
+    const steps = stepsToTake || gameState.currentDiceRoll!;
+    // Simplified movement logic
     if (piece.state === 'home_yard') {
-      if (gameState.currentDiceRoll === 6) {
-        piece.position = 0; // Conceptual 'start' position for the color
-        piece.state = 'on_track';
-        gameState.turnLog.push(`${userId} moved ${pieceId} out of home yard.`);
-      } else {
-        throw new Error(`Piece ${pieceId} needs a 6 to move out of home yard.`);
-      }
-    } else if (piece.state === 'on_track') {
-      piece.position += steps; // Simple addition, no board wrap-around or complex paths
-      gameState.turnLog.push(`${userId} moved ${pieceId} by ${steps} steps to ${piece.position}.`);
-      // Conceptual: if piece.position > 51 (end of main track for some colors) -> move to 'safe_home_run'
-      // Conceptual: if piece.position leads to 'finished' -> update state
-    } else if (piece.state === 'safe_home_run') {
-        piece.position += steps; // Simplified
-        gameState.turnLog.push(`${userId} moved ${pieceId} in home run to ${piece.position}.`);
-    }
-    // --- End of simplified placeholder logic ---
+      if (gameState.currentDiceRoll === 6) { piece.state = 'on_track'; piece.position = 0; /* conceptual start */ }
+      else { throw new Error('Need a 6 to move from home yard.'); }
+    } else { piece.position += steps; piece.position %= 52; /* conceptual track wrap */ }
+    gameState.turnLog.push(`${player.displayName} moved ${pieceId}.`);
 
     gameState.lastMoveAt = new Date().toISOString();
-
-    // Placeholder: Check for win condition (all 4 pieces of a player are 'finished')
-    // const allFinished = player.pieces.every(p => p.state === 'finished');
-    // if (allFinished) {
-    //   gameState.winnerUserId = userId;
-    //   gameState.gamePhase = 'finished';
-    //   gameState.turnLog.push(`Player ${userId} has won the game!`);
-    // } else {
-      // Placeholder: Switch turn or roll again if it was a six (simplified)
-      if (gameState.currentDiceRoll === 6 && playerState?.consecutiveSixes !==3) { // Check if turn should be skipped due to 3 sixes
+    if (gameState.currentDiceRoll === 6 && player.consecutiveSixes < 3) { // check not 3rd six
         gameState.gamePhase = 'dice_to_roll'; // Same player rolls again
-        gameState.turnLog.push(`${userId} (Color: ${player.color}) gets another turn.`);
-      } else {
-        // Switch to next player
+        gameState.turnLog.push(`${player.displayName} gets another turn.`);
+    } else {
         const currentPlayerIndex = gameState.players.findIndex(p => p.userId === userId);
         const nextPlayerIndex = (currentPlayerIndex + 1) % gameState.players.length;
         gameState.currentPlayerUserId = gameState.players[nextPlayerIndex].userId;
         gameState.gamePhase = 'dice_to_roll';
-        gameState.currentDiceRoll = undefined; // Clear dice roll for next player
-        if(playerState) { // playerState should exist if we reached here
-            playerState.consecutiveSixes = 0; // Reset for current player as their turn part is done
-            playerState.hasRolledSixRecently = false;
-        }
-        gameState.turnLog.push(`Turn ended. ${gameState.currentPlayerUserId} (Color: ${gameState.players[nextPlayerIndex].color}) to play.`);
-      }
-    // }
-
+        player.consecutiveSixes = 0; // Reset for current player
+        player.hasRolledSixRecently = false;
+        gameState.turnLog.push(`Turn ended. ${gameState.players[nextPlayerIndex].displayName} to play.`);
+    }
+    gameState.currentDiceRoll = undefined;
     activeLudoGames.set(roomId, gameState);
     return { ...gameState };
   }
 
-  // Method to get current Ludo game state (for polling or UI updates)
   async getLudoGameState(roomId: string): Promise<LudoGameState | undefined> {
-    return activeLudoGames.get(roomId);
+    return activeLudoGames.get(roomId) ? { ...activeLudoGames.get(roomId)! } : undefined;
   }
 
-  // For testing/cleanup
-  clearLudoGames(): void {
-      activeLudoGames.clear();
-  }
+  clearLudoGames(): void { activeLudoGames.clear(); } // For testing
 }

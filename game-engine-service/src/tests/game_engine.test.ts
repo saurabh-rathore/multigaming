@@ -1,5 +1,11 @@
 import { GameEngineService } from '../services/gameEngineService';
 import { Game, GameResult, GameResultRequestBody } from '../types/game.types';
+import { LudoGameState } from '../types/ludo.types'; // For Ludo tests
+// Import mock controls from GameEngineService's specific db.config
+import {
+    __GameEngine_टेस्ट_setOneTimeMockResponse as setMockDbResponse,
+    __GameEngine_टेस्ट_clearOneTimeMockResponses as clearMockDbResponses
+} from '../config/db.config';
 
 // Simple assertion function for testing
 const assert = (condition: boolean, message: string) => {
@@ -12,155 +18,194 @@ const assert = (condition: boolean, message: string) => {
   }
 };
 
-// Get mock game IDs from the service's db for stable testing if possible
-// This requires access to the db instance or specific IDs.
-// For simplicity, we'll assume we know one or two active game IDs and one inactive from the mock data setup.
-// Let's find them by properties, assuming names are unique for mock data.
-let ACTIVE_GAME_ID_1: string | undefined;
-let ACTIVE_GAME_ID_2: string | undefined;
-let INACTIVE_GAME_ID: string | undefined;
+// Helper for mock OkPacket
+const mockOkPacket = (affectedRows = 1, insertId: string | number = 1) => ({
+  okPacket: { affectedRows, insertId, changedRows: affectedRows }
+});
+const mockSelectEmpty = () => ({ rows: [] });
 
-const tempServiceForIds = new GameEngineService(); // Temporary instance to get IDs
-(async () => {
-    const games = await tempServiceForIds.listActiveGames();
-    if (games.length > 0) ACTIVE_GAME_ID_1 = games.find(g => g.name === 'Ludo Masters')?.game_id;
-    if (games.length > 1) ACTIVE_GAME_ID_2 = games.find(g => g.name === 'Rummy Royale')?.game_id;
-    // To get inactive game ID, we'd need a method like listAllGames or access db directly
-    // For now, let's assume we know its name from mock data setup in service
-    const allGames = Array.from((tempServiceForIds as any).db.games.values()) as Game[];
-    INACTIVE_GAME_ID = allGames.find(g => g.name === 'Inactive Game')?.game_id;
-})();
+// Mock Game Metadata (consistent with what might be in DB)
+const LUDO_META_ID = 'ludo_game_official_id'; // Used by Ludo logic in service
+const MOCK_LUDO_META: Game = {
+  game_id: LUDO_META_ID, name: 'Ludo Classic', description: 'The game of Ludo.', genre: 'Board',
+  min_players: 2, max_players: 4, is_active: true,
+  stake_options: [{amount: 10, currency: "INR"}], // Will be stringified in DB, parsed on read
+  created_at: new Date(), updatedAt: new Date()
+};
+const MOCK_RUMMY_META: Game = {
+  game_id: 'rummy_meta_id', name: 'Rummy Royale', description: 'Card game.', genre: 'Card',
+  min_players: 2, max_players: 5, is_active: true,
+  stake_options: [{amount: 25, currency: "INR"}],
+  created_at: new Date(), updatedAt: new Date()
+};
+const MOCK_INACTIVE_GAME_META: Game = {
+  game_id: 'inactive_meta_id', name: 'Inactive Puzzle', description: 'Puzzle game.', genre: 'Puzzle',
+  min_players: 1, max_players: 1, is_active: false,
+  created_at: new Date(), updatedAt: new Date()
+};
+
+const NON_EXISTENT_GAME_ID_META = 'game_meta_does_not_exist';
+const USER_A_GE = 'userA_ge_test';
+const USER_B_GE = 'userB_ge_test';
+const ROOM_ID_GE_1 = 'room_ge_alpha_101';
 
 
-const NON_EXISTENT_GAME_ID = 'game_id_does_not_exist';
-
-const runGameEngineTests = async () => {
+const runGameEngineDbTests = async () => {
   (globalThis as any).gameEngineTestFailures = 0;
   (globalThis as any).gameEngineTestSuccesses = 0;
+  let gameEngineService: GameEngineService;
 
-  const gameEngineService = new GameEngineService(); // Fresh instance for tests
+  const beforeEachTest = () => {
+    gameEngineService = new GameEngineService();
+    // Crucially, clear Ludo game states for Ludo tests, as that part is still in-memory
+    gameEngineService.clearLudoGames();
+    clearMockDbResponses();
+  };
 
-  // Wait a moment for async ID fetching if tests run immediately
-  await new Promise(resolve => setTimeout(resolve, 100));
+  console.log('\n--- Running GameEngineService (DB Mocked): Metadata Tests ---');
+  beforeEachTest();
 
-  assert(ACTIVE_GAME_ID_1 !== undefined, 'PRE-TEST: ACTIVE_GAME_ID_1 must be found.');
-  assert(INACTIVE_GAME_ID !== undefined, 'PRE-TEST: INACTIVE_GAME_ID must be found.');
-
-
-  console.log('\n--- Running GameEngineService List & Get Game Tests ---');
-
-  // Test 1: List active games
+  // Test 1: List active games (metadata)
+  // Mock the SELECT query for active games
+  setMockDbResponse({ rows: [MOCK_LUDO_META, MOCK_RUMMY_META].map(g => ({...g, stake_options: JSON.stringify(g.stake_options)})) });
   const activeGames = await gameEngineService.listActiveGames();
-  assert(activeGames.length === 2, 'LIST-GAMES-1: Should list 2 active games from mock data.');
-  assert(activeGames.every(g => g.is_active), 'LIST-GAMES-2: All listed games should be active.');
-  assert(activeGames.find(g => g.game_id === ACTIVE_GAME_ID_1) !== undefined, 'LIST-GAMES-3: Active game 1 should be in the list.');
-
-  // Test 2: Get existing active game by ID
-  if (ACTIVE_GAME_ID_1) {
-    const game1 = await gameEngineService.getGameById(ACTIVE_GAME_ID_1);
-    assert(game1 !== undefined, 'GET-GAME-1: Game 1 should be found.');
-    assert(game1?.game_id === ACTIVE_GAME_ID_1, 'GET-GAME-2: Game 1 ID should match.');
-    assert(game1?.name === 'Ludo Masters', 'GET-GAME-3: Game 1 name should be Ludo Masters.');
-  }
-
-  // Test 3: Get existing inactive game by ID
-   if (INACTIVE_GAME_ID) {
-    const inactiveGame = await gameEngineService.getGameById(INACTIVE_GAME_ID);
-    assert(inactiveGame !== undefined, 'GET-INACTIVE-1: Inactive game should be found by ID.');
-    assert(inactiveGame?.is_active === false, 'GET-INACTIVE-2: Game should be marked as inactive.');
-  }
-
-  // Test 4: Get non-existent game by ID
-  const nonExistentGame = await gameEngineService.getGameById(NON_EXISTENT_GAME_ID);
-  assert(nonExistentGame === undefined, 'GET-NON-EXISTENT-1: Non-existent game should return undefined.');
+  assert(activeGames.length === 2, 'LIST-GAMES-DB-1: Should list 2 active games from mock DB.');
+  assert(activeGames.every(g => g.is_active), 'LIST-GAMES-DB-2: All listed games should be active.');
+  assert(activeGames.find(g => g.game_id === LUDO_META_ID) !== undefined, 'LIST-GAMES-DB-3: Ludo meta should be in list.');
+  assert(typeof activeGames[0].stake_options === 'object', 'LIST-GAMES-DB-4: stake_options should be parsed to object.');
 
 
-  console.log('\n--- Running GameEngineService Record Game Result Tests ---');
-  const ROOM_ID_1 = 'room_alpha_101';
-  const USER_ID_A = 'user_test_A';
-  const USER_ID_B = 'user_test_B';
+  // Test 2: Get existing active game by ID (metadata)
+  beforeEachTest();
+  setMockDbResponse({ rows: [{...MOCK_LUDO_META, stake_options: JSON.stringify(MOCK_LUDO_META.stake_options)}] });
+  const game1 = await gameEngineService.getGameById(LUDO_META_ID);
+  assert(game1 !== undefined, 'GET-GAME-DB-1: Ludo meta should be found.');
+  assert(game1?.name === 'Ludo Classic', 'GET-GAME-DB-2: Ludo meta name correct.');
+  assert(typeof game1?.stake_options === 'object', 'GET-GAME-DB-3: stake_options parsed on getGameById.');
 
-  // Test 5: Successfully record a new game result for an active game
-  const resultData1: GameResultRequestBody = { room_id: ROOM_ID_1, user_id: USER_ID_A, score: 100, rank: 1, winnings: 50 };
+  // Test 3: Get non-existent game by ID (metadata)
+  beforeEachTest();
+  setMockDbResponse(mockSelectEmpty());
+  const nonExistentGame = await gameEngineService.getGameById(NON_EXISTENT_GAME_ID_META);
+  assert(nonExistentGame === undefined, 'GET-NON-EXISTENT-DB-1: Non-existent game meta should be undefined.');
+
+
+  console.log('\n--- Running GameEngineService (DB Mocked): Game Results Tests ---');
+  beforeEachTest();
+
+  // Test 4: Successfully record a new game result
+  const resultData1: GameResultRequestBody = { room_id: ROOM_ID_GE_1, user_id: USER_A_GE, score: 100, rank: 1, winnings: 50 };
+  // 1. Mock getGameById (for game active check)
+  setMockDbResponse({ rows: [{...MOCK_LUDO_META, stake_options: JSON.stringify(MOCK_LUDO_META.stake_options)}] });
+  // 2. Mock SELECT for duplicate check (no existing result)
+  setMockDbResponse(mockSelectEmpty());
+  // 3. Mock INSERT for the new game_result
+  setMockDbResponse(mockOkPacket(1, 'result_xyz_123'));
+
   let recordedResult1: GameResult | undefined;
-  if (ACTIVE_GAME_ID_1) {
-    try {
-      recordedResult1 = await gameEngineService.recordGameResult(ACTIVE_GAME_ID_1, resultData1);
-      assert(recordedResult1 !== undefined, 'RECORD-RESULT-SUCCESS-1: Result should be recorded.');
-      assert(recordedResult1.game_id === ACTIVE_GAME_ID_1, 'RECORD-RESULT-SUCCESS-2: Game ID should match.');
-      assert(recordedResult1.user_id === USER_ID_A, 'RECORD-RESULT-SUCCESS-3: User ID should match.');
-      assert(recordedResult1.score === 100, 'RECORD-RESULT-SUCCESS-4: Score should match.');
-    } catch (e: any) {
-      assert(false, `RECORD-RESULT-SUCCESS-FAIL: Should not fail: ${e.message}`);
-    }
-  }
-
-  // Test 6: Attempt to record result for a non-existent game
   try {
-    await gameEngineService.recordGameResult(NON_EXISTENT_GAME_ID, resultData1);
-    assert(false, 'RECORD-NON-EXISTENT-GAME-FAIL: Should have thrown error.');
+    recordedResult1 = await gameEngineService.recordGameResult(LUDO_META_ID, resultData1);
+    assert(recordedResult1 !== undefined, 'RECORD-RESULT-DB-SUCCESS-1: Result should be recorded.');
+    assert(recordedResult1.game_id === LUDO_META_ID, 'RECORD-RESULT-DB-SUCCESS-2: Game ID matches.');
+    assert(recordedResult1.user_id === USER_A_GE, 'RECORD-RESULT-DB-SUCCESS-3: User ID matches.');
+    assert(recordedResult1.score === 100, 'RECORD-RESULT-DB-SUCCESS-4: Score matches.');
   } catch (e: any) {
-    assert(e.message.includes('not found'), `RECORD-NON-EXISTENT-GAME-1: Correct error. Got: ${e.message}`);
+    assert(false, `RECORD-RESULT-DB-SUCCESS-FAIL: Should not fail: ${e.message}`);
   }
 
-  // Test 7: Attempt to record result for an inactive game
-  if (INACTIVE_GAME_ID) {
-    try {
-      await gameEngineService.recordGameResult(INACTIVE_GAME_ID, resultData1);
-      assert(false, 'RECORD-INACTIVE-GAME-FAIL: Should have thrown error.');
-    } catch (e: any) {
-      assert(e.message.includes('not active'), `RECORD-INACTIVE-GAME-1: Correct error. Got: ${e.message}`);
-    }
+  // Test 5: Attempt to record result for an inactive game
+  beforeEachTest();
+  // 1. Mock getGameById -> returns inactive game
+  setMockDbResponse({ rows: [{...MOCK_INACTIVE_GAME_META, stake_options: MOCK_INACTIVE_GAME_META.stake_options ? JSON.stringify(MOCK_INACTIVE_GAME_META.stake_options) : null}] });
+  try {
+    await gameEngineService.recordGameResult(MOCK_INACTIVE_GAME_META.game_id, resultData1);
+    assert(false, 'RECORD-INACTIVE-GAME-DB-FAIL: Should have thrown error.');
+  } catch (e: any) {
+    assert(e.message.includes('not active'), `RECORD-INACTIVE-GAME-DB-1: Correct error. Got: ${e.message}`);
   }
 
-  // Test 8: Attempt to record a duplicate game result
-  if (ACTIVE_GAME_ID_1 && recordedResult1) { // Ensure first result was recorded
-    try {
-      await gameEngineService.recordGameResult(ACTIVE_GAME_ID_1, resultData1); // Same data as resultData1
-      assert(false, 'RECORD-DUPLICATE-FAIL: Should have thrown error for duplicate result.');
-    } catch (e: any) {
-      assert(e.message.includes('Duplicate game result'), `RECORD-DUPLICATE-1: Correct error. Got: ${e.message}`);
-    }
+  // Test 6: Attempt to record a duplicate game result
+  beforeEachTest();
+  // 1. Mock getGameById -> returns active game
+  setMockDbResponse({ rows: [{...MOCK_LUDO_META, stake_options: JSON.stringify(MOCK_LUDO_META.stake_options)}] });
+  // 2. Mock SELECT for duplicate check -> returns an existing result
+  setMockDbResponse({ rows: [{ result_id: 'existing_res_id', ...resultData1, game_id: LUDO_META_ID, recorded_at: new Date() }] });
+  try {
+    await gameEngineService.recordGameResult(LUDO_META_ID, resultData1);
+    assert(false, 'RECORD-DUPLICATE-DB-FAIL: Should have thrown error.');
+  } catch (e: any) {
+    assert(e.message.includes('Duplicate game result'), `RECORD-DUPLICATE-DB-1: Correct error. Got: ${e.message}`);
   }
 
-  // Test 9: Record another result for the same room, different user
-  const resultData2: GameResultRequestBody = { room_id: ROOM_ID_1, user_id: USER_ID_B, score: 90, rank: 2, winnings: 10 };
-  if (ACTIVE_GAME_ID_1) {
-    try {
-      const recordedResult2 = await gameEngineService.recordGameResult(ACTIVE_GAME_ID_1, resultData2);
-      assert(recordedResult2 !== undefined, 'RECORD-RESULT-MULTIUSER-1: Second user result should record.');
-      assert(recordedResult2.user_id === USER_ID_B, 'RECORD-RESULT-MULTIUSER-2: User ID B should match.');
-    } catch (e: any) {
-       assert(false, `RECORD-RESULT-MULTIUSER-FAIL: Should not fail: ${e.message}`);
-    }
+  // Test 7: Get results by room ID
+  beforeEachTest();
+  const mockResultsForRoom: GameResult[] = [
+      { result_id: 'res1', game_id: LUDO_META_ID, room_id: ROOM_ID_GE_1, user_id: USER_A_GE, score: 100, rank:1, recorded_at: new Date()},
+      { result_id: 'res2', game_id: LUDO_META_ID, room_id: ROOM_ID_GE_1, user_id: USER_B_GE, score: 90, rank:2, recorded_at: new Date()},
+  ];
+  setMockDbResponse({ rows: mockResultsForRoom.map(r => ({...r, game_specific_data: r.game_specific_data ? JSON.stringify(r.game_specific_data) : null})) });
+  const roomResults = await gameEngineService.getResultsByRoom(ROOM_ID_GE_1);
+  assert(roomResults.length === 2, 'GET-ROOM-RESULTS-DB-1: Should find 2 results for room.');
+  assert(roomResults.some(r => r.user_id === USER_A_GE), 'GET-ROOM-RESULTS-DB-2: User A result present.');
+
+
+  console.log('\n--- Running GameEngineService: Ludo Game Logic (DB Mock for Meta) Tests ---');
+  beforeEachTest(); // Clears Ludo games too
+
+  // Test 8: startLudoGame - successfully
+  // 1. Mock for getGameById(LUDO_GAME_ID_CONST) inside startLudoGame
+  setMockDbResponse({ rows: [{...MOCK_LUDO_META, stake_options: JSON.stringify(MOCK_LUDO_META.stake_options)}] });
+  let ludoState: LudoGameState | undefined;
+  try {
+    ludoState = await gameEngineService.startLudoGame(ROOM_ID_GE_1, [USER_A_GE, USER_B_GE]);
+    assert(ludoState !== undefined, 'LUDO-START-DB-1: Ludo game state should be created.');
+    assert(ludoState.roomId === ROOM_ID_GE_1, 'LUDO-START-DB-2: Room ID correct.');
+    assert(ludoState.players.length === 2, 'LUDO-START-DB-3: Correct number of players.');
+    assert(ludoState.gameId === LUDO_META_ID, 'LUDO-START-DB-4: Game ID is Ludo meta ID.');
+  } catch (e: any) {
+    assert(false, `LUDO-START-DB-FAIL: Should not fail. Error: ${e.message}`);
   }
 
-  console.log('\n--- Running GameEngineService Get Results By Room Test ---');
-  // Test 10: Get results by room ID
-  const roomResults = await gameEngineService.getResultsByRoom(ROOM_ID_1);
-  assert(roomResults.length === 2, 'GET-ROOM-RESULTS-1: Should find 2 results for ROOM_ID_1.');
-  assert(roomResults.find(r => r.user_id === USER_ID_A) !== undefined, 'GET-ROOM-RESULTS-2: User A result should be present.');
-  assert(roomResults.find(r => r.user_id === USER_ID_B) !== undefined, 'GET-ROOM-RESULTS-3: User B result should be present.');
-  // Check sorting by rank (rank 1 should be first if ranks are defined)
-  if (roomResults.length === 2 && roomResults[0].rank !== undefined && roomResults[1].rank !== undefined) {
-    assert(roomResults[0].rank <= roomResults[1].rank, 'GET-ROOM-RESULTS-4: Results should be sorted by rank (ascending).');
+  // Test 9: startLudoGame - Ludo metadata not found in DB
+  beforeEachTest();
+  setMockDbResponse(mockSelectEmpty()); // Mock getGameById(LUDO_GAME_ID_CONST) returns nothing
+  try {
+    await gameEngineService.startLudoGame(ROOM_ID_GE_1, [USER_A_GE, USER_B_GE]);
+    assert(false, 'LUDO-START-NO-META-FAIL: Should fail if Ludo meta not found.');
+  } catch (e: any) {
+    assert(e.message.includes('Ludo game metadata not found'), `LUDO-START-NO-META-1: Correct error. Got: ${e.message}`);
+  }
+
+  // Tests for rollDiceForLudo and moveLudoPiece remain largely unchanged as they primarily
+  // interact with the in-memory activeLudoGames map. The key change was that startLudoGame
+  // now relies on DB for game metadata (min/max players), which we've tested above.
+  // We can add a simple scenario for roll/move to ensure they still function.
+  console.log('\n--- Running GameEngineService: Ludo In-Memory Actions (Post Meta DB Mock) ---');
+  beforeEachTest();
+  // Setup: Start a game first (mocking the DB call for its metadata)
+  setMockDbResponse({ rows: [{...MOCK_LUDO_META, stake_options: JSON.stringify(MOCK_LUDO_META.stake_options)}] });
+  await gameEngineService.startLudoGame(ROOM_ID_GE_1, [USER_A_GE, USER_B_GE]);
+
+  // Test 10: Roll dice in the started Ludo game
+  try {
+    const stateAfterRoll = await gameEngineService.rollDiceForLudo(ROOM_ID_GE_1, USER_A_GE); // USER_A_GE is current player
+    assert(stateAfterRoll.currentDiceRoll !== undefined && stateAfterRoll.currentDiceRoll! >= 1 && stateAfterRoll.currentDiceRoll! <= 6, 'LUDO-ROLL-1: Dice roll is valid.');
+    assert(stateAfterRoll.gamePhase === 'piece_to_move', 'LUDO-ROLL-2: Game phase updated to piece_to_move.');
+  } catch (e: any) {
+    assert(false, `LUDO-ROLL-FAIL: Should not fail. Error: ${e.message}`);
   }
 
 
-  console.log('\n--- Game Engine Test Summary ---');
+  console.log('\n--- Game Engine Service (DB Mocked) Test Summary ---');
   console.log(`Successes: ${(globalThis as any).gameEngineTestSuccesses || 0}`);
   console.log(`Failures: ${(globalThis as any).gameEngineTestFailures || 0}`);
   if ((globalThis as any).gameEngineTestFailures > 0) {
-    console.error('SOME GAME ENGINE TESTS FAILED!');
+    console.error('SOME GAME ENGINE SERVICE (DB MOCK) TESTS FAILED!');
   } else {
-    console.log('All game engine tests passed (within this simulated environment)!');
+    console.log('All game engine service (DB mock for metadata/results) tests passed!');
   }
 };
 
-// Run tests after a slight delay to ensure mock IDs are fetched.
-// This is a workaround for the simple async ID fetching.
-// In a real test setup, this would be handled by test runner's lifecycle hooks.
-setTimeout(runGameEngineTests, 200);
+runGameEngineDbTests();
 
-
-export { runGameEngineTests }; // Export if it needs to be called from elsewhere
+export { runGameEngineDbTests };

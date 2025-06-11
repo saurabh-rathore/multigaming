@@ -1,14 +1,14 @@
 {
-  "name": "user-profile-service",
+  "name": "game-engine-service",
   "version": "1.0.0",
-  "description": "User Profile Service for Multiplayer Gaming Platform",
+  "description": "Game Engine Service for Multiplayer Gaming Platform (Manages game metadata and results)",
   "main": "src/main.ts",
   "scripts": {
     "start": "node dist/main.js",
     "build": "tsc",
     "test": "echo "Error: no test specified" && exit 1"
   },
-  "keywords": ["user", "profile", "gaming"],
+  "keywords": ["game", "engine", "metadata", "results", "gaming"],
   "author": "AI Developer",
   "license": "ISC",
   "dependencies": {
