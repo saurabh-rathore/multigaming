@@ -147,6 +147,157 @@ const runTests = async () => {
   }
 };
 
-runTests();
+// runTests(); // Don't auto-run if this file is imported elsewhere or run by a test runner
 
-export { runTests };
+export { runTests as runAuthServiceDbMockTests }; // Export with a more specific name
+
+
+// --- New Test Section for OTP and 2FA ---
+const runOtpAnd2FATests = async () => {
+    console.log('\n--- Running OTP & 2FA Tests (with DB Mock) ---');
+    let authService: AuthService;
+    const MOCK_PHONE = '+15551234567';
+    const MOCK_OTP = '123456'; // Example OTP
+    const MOCK_OTP_HASH = `hashed_${MOCK_OTP}_placeholder`; // Simplified hash
+
+    const beforeEachOtp = () => {
+        authService = new AuthService();
+        __टेस्ट_clearOneTimeMockResponses();
+         // Mock twilioConfig to be "configured" for these tests to simulate sending
+        // This is a conceptual mock; actual twilio.config.ts might need its own mock setup
+        // (jest.mock('../config/twilio.config', () => ({ ...jest.requireActual('../config/twilio.config'), isTwilioConfigured: () => true })));
+        console.log("Conceptual: Twilio config mocked as 'configured' for OTP tests.");
+    };
+
+    // Test: Request OTP successfully
+    beforeEachOtp();
+    // Mock: Check for active OTPs (return none)
+    __टेस्ट_setOneTimeMockResponse({ rows: [] });
+    // Mock: INSERT OTP code
+    __टेस्ट_setOneTimeMockResponse(mockOkPacket(1, 'mock_otp_id'));
+    try {
+        const result = await authService.requestOtp({ phone: MOCK_PHONE, purpose: 'verification' });
+        assert(result.message.includes('OTP has been sent'), 'OTP-REQ-SUCCESS-1: Success message should be returned.');
+        assert(result.otp_retry_delay_seconds === 60, 'OTP-REQ-SUCCESS-2: Retry delay should be set.');
+    } catch (e: any) {
+        assert(false, `OTP-REQ-SUCCESS-FAIL: Should not fail: ${e.message}`);
+    }
+
+    // Test: Request OTP - rate limited
+    beforeEachOtp();
+    const recentOtpEntry = { id: 'recent_otp', created_at: new Date(Date.now() - 30 * 1000) }; // 30s ago
+    __टेस्ट_setOneTimeMockResponse({ rows: [recentOtpEntry] }); // Active OTP exists
+    try {
+        await authService.requestOtp({ phone: MOCK_PHONE, purpose: 'verification' });
+        assert(false, 'OTP-REQ-RATE-LIMIT-FAIL: Should have been rate limited.');
+    } catch (e: any) {
+        assert(e.message.includes('Please wait for 60 seconds'), `OTP-REQ-RATE-LIMIT-1: Correct error. Got: ${e.message}`);
+    }
+
+    // Test: Verify OTP successfully (for phone verification)
+    beforeEachOtp();
+    const validOtpDbEntry = { id: 'otp_to_verify', phone: MOCK_PHONE, otp_hash: MOCK_OTP_HASH, purpose: 'verification', used: false, expires_at: new Date(Date.now() + 5*60*1000), created_at: new Date() };
+    // Mock: Find valid OTP
+    __टेस्ट_setOneTimeMockResponse({ rows: [validOtpDbEntry] });
+    // Mock: Mark OTP as used
+    __टेस्ट_setOneTimeMockResponse(mockOkPacket(1));
+    // Mock: Update user's phone_verified status (assume user exists with this phone)
+    __टेस्ट_setOneTimeMockResponse(mockOkPacket(1));
+    // Mock: Fetch updated user (optional, if service returns it)
+    __टेस्ट_setOneTimeMockResponse({ rows: [{ ...mockUserFromDb, phone: MOCK_PHONE, phone_verified: true, status: 'active' }] });
+    try {
+        const result = await authService.verifyOtp({ phone: MOCK_PHONE, otp: MOCK_OTP, purpose: 'verification' });
+        assert(result.message.includes('OTP verified successfully'), 'OTP-VERIFY-SUCCESS-1: Success message.');
+        assert(result.user?.phone_verified === true, 'OTP-VERIFY-SUCCESS-2: User phone should be verified.');
+        // In this flow, token is not typically issued just for phone verification.
+    } catch (e: any) {
+        assert(false, `OTP-VERIFY-SUCCESS-FAIL: Should not fail: ${e.message}`);
+    }
+
+    // Test: Verify OTP - invalid OTP
+    beforeEachOtp();
+    __टेस्ट_setOneTimeMockResponse({ rows: [validOtpDbEntry] }); // Valid OTP exists in DB
+    try {
+        await authService.verifyOtp({ phone: MOCK_PHONE, otp: '654321', purpose: 'verification' }); // Incorrect OTP
+        assert(false, 'OTP-VERIFY-INVALID-FAIL: Should have failed for invalid OTP.');
+    } catch (e: any) {
+        assert(e.message.includes('Invalid or expired OTP'), `OTP-VERIFY-INVALID-1: Correct error. Got: ${e.message}`);
+    }
+
+    // Test: Login with 2FA enabled - OTP required
+    beforeEachOtp();
+    const userWith2FA = { ...mockUserFromDb, is_otp_enabled: true, phone_verified: true, phone: MOCK_PHONE, status: 'active' as 'active' };
+    // Mock: Find user by email
+    __टेस्ट_setOneTimeMockResponse({ rows: [userWith2FA] });
+    // Mock: (requestOtp) Check for active OTPs (return none)
+    __टेस्ट_setOneTimeMockResponse({ rows: [] });
+    // Mock: (requestOtp) INSERT OTP code
+    __टेस्ट_setOneTimeMockResponse(mockOkPacket(1, 'mock_2fa_otp_id'));
+    try {
+        const result = await authService.login({ email: MOCK_EMAIL, password: MOCK_PASSWORD });
+        assert(result.otp_required === true, 'LOGIN-2FA-OTP-REQ-1: otp_required should be true.');
+        assert(result.token === '', 'LOGIN-2FA-OTP-REQ-2: Token should be empty when OTP is required.');
+        assert(result.user?.id === userWith2FA.id, 'LOGIN-2FA-OTP-REQ-3: User ID should be returned.');
+    } catch (e: any) {
+        assert(false, `LOGIN-2FA-OTP-REQ-FAIL: Should not fail: ${e.message}`);
+    }
+
+    // Test: Verify OTP for 2FA login - success
+    beforeEachOtp();
+    const valid2FAOtpEntry = { ...validOtpDbEntry, purpose: 'login_2fa' as 'login_2fa' };
+     // Mock: Find valid OTP for login_2fa
+    __टेस्ट_setOneTimeMockResponse({ rows: [valid2FAOtpEntry] });
+    // Mock: Mark OTP as used
+    __टेस्ट_setOneTimeMockResponse(mockOkPacket(1));
+    // Mock: Find user by phone for 2FA (to get full user details for token)
+    __टेस्ट_setOneTimeMockResponse({ rows: [{ ...mockUserFromDb, is_otp_enabled: true, phone_verified: true, phone: MOCK_PHONE }] });
+    // Mock: Insert session
+    __टेस्ट_setOneTimeMockResponse(mockOkPacket(1, 'mock_2fa_session_id'));
+    try {
+        const result = await authService.verifyOtp({ phone: MOCK_PHONE, otp: MOCK_OTP, purpose: 'login_2fa' });
+        assert(result.message.includes('Login successful with 2FA'), 'OTP-VERIFY-2FA-SUCCESS-1: Success message.');
+        assert(result.token && result.token.startsWith('placeholder_jwt_for_'), 'OTP-VERIFY-2FA-SUCCESS-2: JWT token should be issued.');
+        assert(result.user?.id === mockUserFromDb.id, 'OTP-VERIFY-2FA-SUCCESS-3: Full user details returned.');
+    } catch (e: any) {
+        assert(false, `OTP-VERIFY-2FA-SUCCESS-FAIL: Should not fail: ${e.message}`);
+    }
+
+    // Test: Login as Guest
+    beforeEachOtp();
+    try {
+        const result = await authService.loginAsGuest();
+        assert(result.token.includes('_is_guest_true_'), 'GUEST-LOGIN-SUCCESS-1: Guest token should indicate guest status.');
+        assert(result.guest_id.startsWith('gst_'), 'GUEST-LOGIN-SUCCESS-2: Guest ID should have prefix.');
+        assert(result.user?.is_guest === true, 'GUEST-LOGIN-SUCCESS-3: User object should indicate guest.');
+        assert(result.user?.id === result.guest_id, 'GUEST-LOGIN-SUCCESS-4: User ID should match guest_id.');
+    } catch (e: any) {
+        assert(false, `GUEST-LOGIN-FAIL: Should not fail: ${e.message}`);
+    }
+
+
+    console.log('\n--- OTP & 2FA Test Summary ---');
+    console.log(`Successes: ${(globalThis as any).testSuccesses - (globalThis as any).initialSuccessesOtp}`); // Crude count for this block
+    console.log(`Failures: ${(globalThis as any).testFailures - (globalThis as any).initialFailuresOtp}`);
+    if (((globalThis as any).testFailures - (globalThis as any).initialFailuresOtp) > 0) {
+        console.error('SOME OTP/2FA TESTS FAILED!');
+    } else {
+        console.log('All OTP/2FA tests passed!');
+    }
+};
+
+const runAllAuthTests = async () => {
+    (globalThis as any).initialSuccessesOtp = (globalThis as any).testSuccesses || 0;
+    (globalThis as any).initialFailuresOtp = (globalThis as any).testFailures || 0;
+
+    await runAuthServiceDbMockTests(); // Run original tests
+    await runOtpAnd2FATests(); // Run new tests
+
+    // Overall summary could be aggregated if needed
+};
+
+// If running this file directly:
+if (typeof require !== 'undefined' && require.main === module) {
+    runAllAuthTests();
+}
+
+export { runAllAuthTests };

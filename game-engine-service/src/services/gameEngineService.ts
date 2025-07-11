@@ -3,8 +3,10 @@ import {
     LudoGameState, LudoPlayer, LudoPiece, LudoColor, LudoPieceState, LudoGamePhase,
     CreateLudoGameRequest, LudoRollDiceRequest, LudoMovePieceRequest
 } from '../types/ludo.types';
+import { TowerDefenseGameState, TowerDefensePlayerAction } from '../types/tower_defense.types';
+import { FiveGTowerDefenseLogic } from './games/5g_tower_defense.logic'; // Import new game logic
 import { generateId } from '../utils/helpers';
-import pool from '../config/db.config'; // Import the conceptual MySQL pool for GameEngine
+import pool from '../config/db.config';
 
 // Define a type for what a DB row might look like
 type GameRow = Game & { [key: string]: any };
@@ -14,43 +16,58 @@ type GameResultRow = GameResult & { [key: string]: any };
 interface OkPacket {
   affectedRows: number;
   insertId?: number | string;
+  changedRows?: number; // For UPDATE
 }
 
-// --- Mock Data Store for Active Ludo Game States (remains in-memory) ---
+// --- Mock Data Store for Active Ludo Game States (remains in-memory for this example) ---
 const activeLudoGames = new Map<string, LudoGameState>(); // Key: roomId
-const LUDO_GAME_ID_CONST = 'ludo_game_official_id'; // Static ID for Ludo game type (ensure this exists in DB)
+const LUDO_GAME_ID_CONST = 'ludo_game_official_id'; // Static ID for Ludo game type
+
+// --- Game Logic Handlers ---
+// This map would associate game_ids with their specific logic handlers.
+const gameLogicHandlers: { [gameId: string]: any } = {
+    // 'ludo_game_official_id': new LudoGameLogic(), // If Ludo logic was also refactored into a class
+    '5g_tower_defense': new FiveGTowerDefenseLogic(),
+    'chess_router_wars': new ChessRouterWarsLogic(), // Register Chess logic handler
+};
 
 
 export class GameEngineService {
 
-  // Helper to ensure Ludo metadata exists in DB (conceptual, run at startup or on-demand)
-  async ensureLudoGameMetadataExists(): Promise<void> {
-    const [rows]: [GameRow[], any] = await pool.query('SELECT game_id FROM games WHERE game_id = ?', [LUDO_GAME_ID_CONST]) as [GameRow[], any];
-    if (rows.length === 0) {
-      const ludoMeta: Game = {
-        game_id: LUDO_GAME_ID_CONST, name: "Ludo Classic",
-        description: "The classic game of Ludo.", genre: "Board",
-        min_players: 2, max_players: 4, is_active: true,
-        stake_options: JSON.stringify([{amount: 10, currency: "INR"}, {amount: 50, currency: "INR"}]), // Store as JSON string
-        created_at: new Date(), updatedAt: new Date()
-      };
-      const insertSql = `INSERT INTO games (game_id, name, description, genre, min_players, max_players, is_active, stake_options, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      await pool.query(insertSql, [
-          ludoMeta.game_id, ludoMeta.name, ludoMeta.description, ludoMeta.genre,
-          ludoMeta.min_players, ludoMeta.max_players, ludoMeta.is_active,
-          ludoMeta.stake_options, ludoMeta.created_at, ludoMeta.updated_at
-      ]);
-      console.log('[GameEngineService-DB] Ensured Ludo Classic metadata exists in DB.');
+    constructor() {
+        // Conceptually ensure essential game metadata exists when service starts
+        // e.g., this.ensureGameMetadataExists(LUDO_GAME_ID_CONST, { name: "Ludo Classic", ... });
+        // e.g., this.ensureGameMetadataExists("5g_tower_defense", { name: "5G Tower Defense", ... });
     }
-  }
-  constructor() {
-      // Conceptually ensure essential game metadata like Ludo exists when service starts
-      // this.ensureLudoGameMetadataExists(); // This would be called in a real init phase
-  }
+
+    private async ensureGameMetadataExists(gameId: string, defaults: Partial<Game>): Promise<void> {
+        const [rows]: [GameRow[], any] = await pool.query('SELECT game_id FROM games WHERE game_id = ?', [gameId]) as [GameRow[], any];
+        if (rows.length === 0) {
+          const meta: Game = {
+            game_id: gameId,
+            name: defaults.name || "Unknown Game",
+            description: defaults.description || "",
+            genre: defaults.genre || "Strategy",
+            min_players: defaults.min_players || 1,
+            max_players: defaults.max_players || 1,
+            is_active: defaults.is_active !== undefined ? defaults.is_active : true,
+            stake_options: defaults.stake_options ? JSON.stringify(defaults.stake_options) : null,
+            created_at: new Date(),
+            updated_at: new Date()
+          };
+          const insertSql = `INSERT INTO games (game_id, name, description, genre, min_players, max_players, is_active, stake_options, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+          await pool.query(insertSql, [
+              meta.game_id, meta.name, meta.description, meta.genre,
+              meta.min_players, meta.max_players, meta.is_active,
+              meta.stake_options, meta.created_at, meta.updated_at
+          ]);
+          console.log(`[GameEngineService-DB] Ensured ${meta.name} metadata exists in DB.`);
+        }
+    }
 
 
-  // === Generic Game Metadata & Results Methods (Now using DB) ===
+  // === Generic Game Metadata & Results Methods (DB interaction) ===
   async listActiveGames(): Promise<Game[]> {
     console.log('[GameEngineService-DB] Listing active games (metadata).');
     const sql = 'SELECT * FROM games WHERE is_active = TRUE';
@@ -128,7 +145,9 @@ export class GameEngineService {
   }
 
 
-  // === Ludo Specific Game Logic Methods (Still using in-memory 'activeLudoGames') ===
+  // === Ludo Specific Game Logic Methods (Still using in-memory 'activeLudoGames' for this example) ===
+  // For a production system with multiple game types being stateful in DB, Ludo would also use the
+  // generic GameRoom methods below, and its logic would be in a LudoGameLogic class.
 
   private initializeLudoPieces(color: LudoColor, count: number = 4): LudoPiece[] {
     const pieces: LudoPiece[] = [];
@@ -254,4 +273,196 @@ export class GameEngineService {
   }
 
   clearLudoGames(): void { activeLudoGames.clear(); } // For testing
+
+
+  // === Generic Game Room and State Management (using DB for game_rooms) ===
+
+  async createGameRoom(
+    gameId: string,
+    gameType: 'PvP' | 'PvE',
+    player1Id: string,
+    gameSettings?: any
+  ): Promise<GameRoom> {
+    console.log(`[GameEngineService-DB] Creating ${gameType} room for game ${gameId}, player ${player1Id}`);
+    await this.ensureGameMetadataExists(gameId, { name: gameId }); // Ensure game metadata exists
+
+    const gameLogic = gameLogicHandlers[gameId];
+    if (!gameLogic) {
+      throw new Error(`No game logic handler found for game ID: ${gameId}`);
+    }
+
+    const roomId = generateId('room');
+    const playerIds = gameType === 'PvE' ? [player1Id] : [player1Id]; // For PvP, player2 joins later
+
+    // Initialize game state using the specific game's logic module
+    const initialGameState = gameLogic.initializeGameState(roomId, gameId, playerIds, gameSettings || {});
+
+    const newRoom: GameRoom = {
+      room_id: roomId,
+      game_id: gameId,
+      game_type: gameType,
+      status: gameType === 'PvE' ? 'active' : 'pending', // PvE can start immediately, PvP waits for player2
+      player1_id: player1Id,
+      player2_id: gameType === 'PvE' ? 'AI' : null, // Player2 is AI for PvE, null for PvP until join
+      current_game_state: initialGameState, // This will be JSON.stringified for DB
+      game_settings: gameSettings || {},
+      created_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString(),
+      started_at: gameType === 'PvE' ? new Date().toISOString() : null,
+    };
+
+    const sql = `
+      INSERT INTO game_rooms (room_id, game_id, game_type, status, player1_id, player2_id, current_game_state, game_settings, created_at, last_activity_at, started_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const params = [
+      newRoom.room_id, newRoom.game_id, newRoom.game_type, newRoom.status,
+      newRoom.player1_id, newRoom.player2_id, JSON.stringify(newRoom.current_game_state), // Serialize state to JSON string
+      JSON.stringify(newRoom.game_settings), newRoom.created_at, newRoom.last_activity_at, newRoom.started_at
+    ];
+
+    const [result]: [OkPacket, any] = await pool.query(sql, params) as [OkPacket, any];
+    if (result.affectedRows !== 1) {
+      throw new Error('Failed to create game room in database.');
+    }
+
+    console.log(`[GameEngineService-DB] Room ${roomId} created for game ${gameId}.`);
+    return newRoom; // Return with game_state as object
+  }
+
+  async joinGameRoom(roomId: string, player2Id: string): Promise<GameRoom | null> {
+    console.log(`[GameEngineService-DB] Player ${player2Id} attempting to join room ${roomId}`);
+    const room = await this.getGameRoomState(roomId);
+    if (!room) throw new Error(`Room ${roomId} not found.`);
+    if (room.game_type !== 'PvP') throw new Error(`Room ${roomId} is not a PvP room.`);
+    if (room.status !== 'pending') throw new Error(`Room ${roomId} is not pending players (status: ${room.status}).`);
+    if (room.player2_id) throw new Error(`Room ${roomId} already has a second player.`);
+    if (room.player1_id === player2Id) throw new Error(`Player ${player2Id} cannot join their own room as player 2.`);
+
+    const now = new Date().toISOString();
+    // Potentially update game state via game logic if joining triggers state change
+    // e.g. room.current_game_state = gameLogicHandlers[room.game_id].handlePlayerJoin(room.current_game_state, player2Id);
+
+    const sql = 'UPDATE game_rooms SET player2_id = ?, status = ?, started_at = ?, last_activity_at = ? WHERE room_id = ? AND player2_id IS NULL';
+    const [result]: [OkPacket, any] = await pool.query(sql, [player2Id, 'active', now, now, roomId]) as [OkPacket, any];
+
+    if (result.affectedRows === 1 || result.changedRows === 1) {
+      console.log(`[GameEngineService-DB] Player ${player2Id} joined room ${roomId}. Game active.`);
+      return this.getGameRoomState(roomId); // Fetch updated room
+    }
+    throw new Error(`Failed to join room ${roomId}. It might have been taken or an error occurred.`);
+  }
+
+  async getGameRoomState(roomId: string): Promise<GameRoom | null> {
+    console.log(`[GameEngineService-DB] Getting state for room: ${roomId}`);
+    const sql = 'SELECT * FROM game_rooms WHERE room_id = ?';
+    const [rows]: [any[], any] = await pool.query(sql, [roomId]) as [any[], any]; // Row type is any for parsing
+
+    if (rows.length > 0) {
+      const row = rows[0];
+      return {
+        ...row,
+        current_game_state: typeof row.current_game_state === 'string' ? JSON.parse(row.current_game_state) : row.current_game_state,
+        game_settings: typeof row.game_settings === 'string' ? JSON.parse(row.game_settings) : row.game_settings,
+      } as GameRoom;
+    }
+    return null;
+  }
+
+  async submitPlayerAction(
+    roomId: string,
+    playerId: string,
+    actionData: TowerDefensePlayerAction | any // Use specific action type for each game
+  ): Promise<GameRoom | null> {
+    console.log(`[GameEngineService-DB] Player ${playerId} submitting action in room ${roomId}`);
+    const room = await this.getGameRoomState(roomId);
+    if (!room) throw new Error(`Room ${roomId} not found.`);
+    if (room.status !== 'active') throw new Error(`Game in room ${roomId} is not active.`);
+    // Add more validation: is it player's turn (if turn-based)? is player part of this room?
+
+    const gameLogic = gameLogicHandlers[room.game_id];
+    if (!gameLogic || !gameLogic.handlePlayerAction) {
+      throw new Error(`No action handler logic found for game ID: ${room.game_id}`);
+    }
+
+    let newGameState = gameLogic.handlePlayerAction(room.current_game_state, playerId, actionData);
+
+    // For real-time games like Tower Defense, the tick update might happen separately or be triggered
+    // Here, for simplicity, we might call a tick update after an action if it's a PvE game and state changes
+    // For TD, tick is more about autonomous updates (enemies move, towers fire)
+    // if (room.game_type === 'PvE' && gameLogic.updateGameTick) {
+    //    newGameState = gameLogic.updateGameTick(newGameState);
+    // }
+    // The game loop for TD would be more complex, likely managed by setInterval or similar on the server,
+    // periodically calling updateGameTick and broadcasting state.
+
+    // Check for game over condition after action
+    if (gameLogic.checkWinLossConditions) { // If game logic has this method
+        newGameState = gameLogic.checkWinLossConditions(newGameState) || newGameState; // It might modify state directly or return new
+    }
+    const isGameOver = newGameState.game_over_status?.is_over;
+    const newStatus = isGameOver ? 'completed' : room.status;
+    const winner = isGameOver ? newGameState.game_over_status?.winner_player_id : room.winner_user_id;
+    const endedAt = isGameOver && !room.ended_at ? new Date().toISOString() : room.ended_at;
+
+
+    const sql = `
+      UPDATE game_rooms
+      SET current_game_state = ?, status = ?, winner_user_id = ?, ended_at = ?, last_activity_at = NOW()
+      WHERE room_id = ?
+    `;
+    const params = [JSON.stringify(newGameState), newStatus, winner, endedAt, roomId];
+    const [result]: [OkPacket, any] = await pool.query(sql, params) as [OkPacket, any];
+
+    if (result.affectedRows === 1 || result.changedRows === 1) {
+      console.log(`[GameEngineService-DB] Action processed for room ${roomId}. Game over: ${isGameOver}`);
+      // If game is over, record results, notify leaderboard service, etc.
+      // This part is crucial and would involve calls to recordGameResult and leaderboardService.updateUserStats
+      if (isGameOver) {
+          // TODO: Call recordGameResult for each player
+          // TODO: Call leaderboardService.updateUserStats for each player
+      }
+      return this.getGameRoomState(roomId); // Return the latest state
+    }
+    throw new Error('Failed to update game state after action.');
+  }
+
+  // Conceptual: Game loop for PvE Tower Defense (would be more complex in reality)
+  // private activeTDLoops = new Map<string, NodeJS.Timeout>();
+  // async startGameAILoop(roomId: string) {
+  //   if (this.activeTDLoops.has(roomId)) return;
+  //
+  //   const loop = setInterval(async () => {
+  //     const room = await this.getGameRoomState(roomId);
+  //     if (!room || room.status !== 'active' || room.game_id !== '5g_tower_defense' || room.game_over_status?.is_over) {
+  //       clearInterval(this.activeTDLoops.get(roomId)!);
+  //       this.activeTDLoops.delete(roomId);
+  //       console.log(`[5GTDLoop] Loop stopped for room ${roomId}.`);
+  //       return;
+  //     }
+  //
+  //     const gameLogic = gameLogicHandlers['5g_tower_defense'] as FiveGTowerDefenseLogic;
+  //     let newGameState = gameLogic.updateGameTick(room.current_game_state);
+  //     // newGameState = gameLogic.checkWinLossConditions(newGameState) || newGameState; // checkWinLossConditions may modify or return
+  //
+  //     const isGameOver = newGameState.game_over_status?.is_over;
+  //     const newStatus = isGameOver ? 'completed' : room.status;
+  //     const winner = isGameOver ? newGameState.game_over_status?.winner_player_id : room.winner_user_id;
+  //     const endedAt = isGameOver && !room.ended_at ? new Date().toISOString() : room.ended_at;
+  //
+  //     const sql = `UPDATE game_rooms SET current_game_state = ?, status = ?, winner_user_id = ?, ended_at = ?, last_activity_at = NOW() WHERE room_id = ?`;
+  //     await pool.query(sql, [JSON.stringify(newGameState), newStatus, winner, endedAt, roomId]);
+  //
+  //     // TODO: Broadcast newGameState to clients via Socket.IO
+  //     // io.to(roomId).emit('gameStateUpdate', newGameState);
+  //
+  //     if (isGameOver) {
+  //        // TODO: Record results, update leaderboards
+  //        console.log(`[5GTDLoop] Game over in room ${roomId}. Winner: ${winner}`);
+  //     }
+  //   }, 2000); // Example: Tick every 2 seconds
+  //   this.activeTDLoops.set(roomId, loop);
+  //   console.log(`[5GTDLoop] AI loop started for Tower Defense room ${roomId}.`);
+  // }
+
 }

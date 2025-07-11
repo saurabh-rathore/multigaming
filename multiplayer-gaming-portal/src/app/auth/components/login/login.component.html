@@ -1,43 +1,40 @@
-<div class="row justify-content-center">
-  <div class="col-md-6 col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="card-title text-center mb-4">Login</h2>
-        <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
-          <div class="mb-3">
-            <label for="email" class="form-label">Email address</label>
-            <input type="email" class="form-control" id="email" name="email"
-                   [(ngModel)]="credentials.email" required email #emailField="ngModel">
-            <div *ngIf="emailField.invalid && (emailField.dirty || emailField.touched)" class="text-danger mt-1 small">
-              <div *ngIf="emailField.errors?.['required']">Email is required.</div>
-              <div *ngIf="emailField.errors?.['email']">Please enter a valid email.</div>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input type="password" class="form-control" id="password" name="password"
-                   [(ngModel)]="credentials.password" required minlength="6" #passwordField="ngModel">
-            <div *ngIf="passwordField.invalid && (passwordField.dirty || passwordField.touched)" class="text-danger mt-1 small">
-              <div *ngIf="passwordField.errors?.['required']">Password is required.</div>
-              <div *ngIf="passwordField.errors?.['minlength']">Password must be at least 6 characters.</div>
-            </div>
-          </div>
-
-          <div *ngIf="errorMessage" class="alert alert-danger mt-3">
-            {{ errorMessage }}
-          </div>
-
-          <div class="d-grid">
-            <button type="submit" class="btn btn-primary" [disabled]="loginForm.invalid || isLoading">
-              <span *ngIf="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              {{ isLoading ? 'Logging in...' : 'Login' }}
-            </button>,
-          </div>
-        </form>
-        <p class="mt-3 text-center">
-          Don't have an account? <a routerLink="/register">Register here</a>
-        </p>
+<div class="login-container">
+  <h2>Login</h2>
+  <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" formControlName="email" class="form-control" placeholder="Enter your email">
+      <div *ngIf="emailControl?.invalid && (emailControl?.dirty || emailControl?.touched)" class="error-message alert alert-danger">
+        <small *ngIf="emailControl?.errors?.['required']">Email is required.</small>
+        <small *ngIf="emailControl?.errors?.['email']">Please enter a valid email address.</small>
       </div>
     </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" formControlName="password" class="form-control" placeholder="Enter your password">
+      <div *ngIf="passwordControl?.invalid && (passwordControl?.dirty || passwordControl?.touched)" class="error-message alert alert-danger">
+        <small *ngIf="passwordControl?.errors?.['required']">Password is required.</small>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" [disabled]="loginForm.invalid || isLoading">
+      <span *ngIf="!isLoading">Login</span>
+      <span *ngIf="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+      <span *ngIf="isLoading"> Logging in...</span>
+    </button>
+  </form>
+
+  <div *ngIf="errorMessage" class="error-message alert alert-danger mt-3">
+    {{ errorMessage }}
+  </div>
+  <div *ngIf="successMessage && !errorMessage" class="success-message alert alert-success mt-3">
+    {{ successMessage }}
+  </div>
+
+  <div class="mt-3">
+    <p>Don't have an account? <a routerLink="/register">Register here</a></p>
+    <!-- Add link for "Forgot Password?" if implementing password reset -->
+    <!-- <p><a routerLink="/forgot-password">Forgot Password?</a></p> -->
   </div>
 </div>

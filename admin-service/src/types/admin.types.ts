@@ -66,3 +66,52 @@ export interface ManualWalletOpRequestBody {
     reason: string;
     // adminUserId from session
 }
+
+
+// --- Dashboard Specific Types ---
+
+export interface DashboardData {
+  active_users_now: number;         // Users active in the last X minutes (e.g., 5-15 mins)
+  active_users_daily: number;       // Unique users active today
+  new_registrations_today: number;
+  total_matches_today: number;
+  satisfaction_score_avg_weekly?: number; // e.g., on a scale of 1-5, if feedback system exists
+  total_revenue_today?: number;          // If monetization is implemented
+  top_games_by_playtime_today?: GameActivityStat[];
+  // Add more dashboard metrics as needed
+}
+
+export interface GameActivityStat {
+    game_id: string;
+    game_name?: string; // Denormalized
+    matches_played: number;
+    total_playtime_minutes: number;
+    unique_players: number;
+}
+
+// For a more detailed list of active users for the dashboard
+export interface ActiveUserSnapshot {
+    user_id: string;
+    username?: string; // Denormalized
+    email?: string; // Denormalized
+    current_game_id?: string | null; // Game they are currently playing, if any
+    last_activity_at: Date | string;
+    session_duration_minutes?: number;
+}
+
+// For match statistics display on dashboard or reports
+export interface MatchStatistics {
+    game_id: string;
+    game_name?: string; // Denormalized
+    total_matches_period: number; // In a given period (e.g., today, last 7 days)
+    average_duration_seconds?: number;
+    total_players_participated: number;
+    peak_concurrent_matches?: number;
+}
+
+// For user satisfaction feedback (conceptual)
+export interface SatisfactionFeedbackSummary {
+    average_rating_overall: number; // e.g. 4.2 / 5
+    total_feedback_count: number;
+    // Could include breakdown by category or sentiment analysis results
+}

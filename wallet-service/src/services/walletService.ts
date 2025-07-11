@@ -284,4 +284,171 @@ export class WalletService {
       const [rows]: [TransactionRow[], any] = await pool.query(sql, [wallet.wallet_id, limit, offset]) as [TransactionRow[], any];
       return rows as Transaction[];
   }
+
+  // --- IAP and Ad Reward Methods (Placeholders/Mocks) ---
+
+  async listIAPProducts(): Promise<IAPProduct[]> {
+    console.log('[WalletService-DB] Listing IAP products.');
+    // In a real app, fetch from iap_products table
+    // For now, return mock data or empty array
+    const sql = 'SELECT product_id, name, description, product_type, coins_awarded, items_awarded, price_tier_reference, is_active, created_at, updated_at FROM iap_products WHERE is_active = TRUE';
+    const [rows]: [any[], any] = await pool.query(sql) as [any[], any];
+    return rows.map(row => ({
+        ...row,
+        items_awarded: typeof row.items_awarded === 'string' ? JSON.parse(row.items_awarded) : row.items_awarded
+    })) as IAPProduct[];
+  }
+
+  async validateGooglePlayPurchase(userId: string, productId: string, purchaseToken: string, orderId?: string): Promise<PurchaseValidationResponse> {
+    console.log(`[WalletService] Validating Google Play Purchase for user ${userId}, product ${productId}, token ${purchaseToken}`);
+    // 1. Create/Update PurchaseTransaction record with status 'pending_validation'
+    // 2. Call Google Play Developer API to validate purchaseToken.
+    //    - This requires setting up Google API client, service accounts, etc.
+    //    - const {data: validationResult} = await androidpublisher.purchases.products.get({packageName, productId, token});
+    // 3. If valid:
+    //    a. Grant items/currency to user (e.g., call this.genericCredit or specific item granting logic)
+    //    b. Update PurchaseTransaction to 'validated' (or 'consumed' if consumable and acknowledged)
+    //    c. Acknowledge/Consume purchase with Google Play API if necessary.
+    // 4. If invalid, update PurchaseTransaction to 'failed_validation'.
+
+    // Mocked success:
+    const wallet = await this.getOrCreateWallet(userId);
+    const iapProduct = (await this.listIAPProducts()).find(p => p.product_id === productId); // Get product details (coins_awarded)
+
+    if (!iapProduct) {
+        return { success: false, message: `IAP Product ${productId} not found.` };
+    }
+
+    // Simulate creating transaction record
+    const purchaseTxId = generateId('ptx_goog');
+    const insertPurchaseSql = `
+        INSERT INTO purchase_transactions (purchase_transaction_id, user_id, wallet_id, product_id, platform, platform_order_id, platform_purchase_token, status, items_granted, initiated_at, validated_at, updated_at)
+        VALUES (?, ?, ?, ?, 'google', ?, ?, 'validated', TRUE, NOW(), NOW(), NOW())
+        ON DUPLICATE KEY UPDATE status='validated', items_granted=TRUE, validated_at=NOW(), updated_at=NOW()`; // Handle re-validation if needed
+
+    await pool.query(insertPurchaseSql, [purchaseTxId, userId, wallet.wallet_id, productId, orderId || null, purchaseToken]);
+
+    // Simulate granting coins
+    if (iapProduct.coins_awarded > 0) {
+        await this.genericCredit(userId, {
+            amount: iapProduct.coins_awarded,
+            credit_to_cash: iapProduct.coins_awarded, // Or map to specific currency type based on IAP
+            type: 'deposit',
+            description: `IAP: ${iapProduct.name}`,
+            internal_reference_id: purchaseTxId
+        });
+    }
+    // TODO: Grant other items from iapProduct.items_awarded (e.g. call user-profile-service)
+
+    const updatedWallet = await this.getOrCreateWallet(userId);
+    return {
+        success: true,
+        message: 'Google Play purchase validated and items granted (mocked).',
+        transaction_id: purchaseTxId,
+        updated_wallet_balance: { cash: updatedWallet.cash_balance, bonus: updatedWallet.bonus_balance },
+        granted_items: { coins: iapProduct.coins_awarded, items: iapProduct.items_awarded }
+    };
+  }
+
+  async validateAppleAppStorePurchase(userId: string, productId: string, transactionReceipt: string, originalTransactionId?: string): Promise<PurchaseValidationResponse> {
+    console.log(`[WalletService] Validating Apple App Store Purchase for user ${userId}, product ${productId}`);
+    // 1. Create/Update PurchaseTransaction record.
+    // 2. Call Apple App Store Server API (/verifyReceipt) to validate.
+    //    - Handle different statuses (sandbox, production).
+    // 3. If valid:
+    //    a. Grant items/currency.
+    //    b. Update PurchaseTransaction.
+    //    c. For non-consumables/subscriptions, ensure transactionId is tracked to prevent re-granting.
+
+    // Mocked success (similar to Google Play mock):
+    const wallet = await this.getOrCreateWallet(userId);
+    const iapProduct = (await this.listIAPProducts()).find(p => p.product_id === productId);
+     if (!iapProduct) {
+        return { success: false, message: `IAP Product ${productId} not found.` };
+    }
+    const purchaseTxId = generateId('ptx_appl');
+     const insertPurchaseSql = `
+        INSERT INTO purchase_transactions (purchase_transaction_id, user_id, wallet_id, product_id, platform, platform_order_id, platform_purchase_token, status, items_granted, initiated_at, validated_at, updated_at)
+        VALUES (?, ?, ?, ?, 'apple', ?, ?, 'validated', TRUE, NOW(), NOW(), NOW())
+        ON DUPLICATE KEY UPDATE status='validated', items_granted=TRUE, validated_at=NOW(), updated_at=NOW()`;
+
+    await pool.query(insertPurchaseSql, [purchaseTxId, userId, wallet.wallet_id, productId, originalTransactionId || null, transactionReceipt]);
+
+    if (iapProduct.coins_awarded > 0) {
+        await this.genericCredit(userId, { amount: iapProduct.coins_awarded, credit_to_cash: iapProduct.coins_awarded, type: 'deposit', description: `IAP: ${iapProduct.name}`, internal_reference_id: purchaseTxId });
+    }
+    // TODO: Grant items
+
+    const updatedWallet = await this.getOrCreateWallet(userId);
+    return {
+        success: true,
+        message: 'Apple App Store purchase validated and items granted (mocked).',
+        transaction_id: purchaseTxId,
+        updated_wallet_balance: { cash: updatedWallet.cash_balance, bonus: updatedWallet.bonus_balance },
+        granted_items: { coins: iapProduct.coins_awarded, items: iapProduct.items_awarded }
+    };
+  }
+
+  async claimAdReward(userId: string, adNetwork: 'admob', rewardType: string, rewardAmount: number, verificationPayload?: string): Promise<ClaimAdRewardResponse> {
+    console.log(`[WalletService] Claiming AdMob reward for user ${userId}. Type: ${rewardType}, Amount: ${rewardAmount}`);
+    // 1. Optional: Server-side verification of AdMob reward callback if implemented.
+    //    (Requires AdMob setup for SSV callbacks to an endpoint on this service).
+    // 2. If verified (or trusted client for now):
+    //    a. Grant the reward.
+
+    let updatedWallet;
+    let updatedSpins;
+
+    if (rewardType === 'coins') {
+      const creditResult = await this.genericCredit(userId, {
+        amount: rewardAmount,
+        credit_to_bonus: rewardAmount, // Example: Ad rewards go to bonus balance
+        type: 'bonus_credit',
+        description: 'Rewarded Ad Bonus',
+        internal_reference_id: `admob_${generateId()}`
+      });
+      updatedWallet = creditResult.wallet;
+    } else if (rewardType === 'wheel_spin') {
+      // This would ideally call user-profile-service to update available_wheel_spins
+      // For now, simulate:
+      console.log(`[WalletService-Mock] User ${userId} granted ${rewardAmount} wheel spins from Ad reward.`);
+      // This part is conceptual as it would involve another service call:
+      // updatedSpins = await userProfileService.incrementWheelSpins(userId, rewardAmount);
+      updatedSpins = rewardAmount; // Placeholder
+    } else {
+        return { success: false, message: `Unsupported ad reward type: ${rewardType}`};
+    }
+
+    // Log this ad reward claim if necessary (e.g., in transactions or a dedicated ad_rewards log)
+
+    return {
+        success: true,
+        message: 'Ad reward claimed successfully (mocked).',
+        granted_reward: { type: rewardType, amount: rewardAmount },
+        updated_wallet_balance: updatedWallet ? { cash: updatedWallet.cash_balance, bonus: updatedWallet.bonus_balance } : undefined,
+        updated_available_spins: updatedSpins
+    };
+  }
+
+  async __seedIAPProducts(): Promise<void> { // Conceptual seeding
+    console.log('[WalletService-DB] Seeding IAP products...');
+    const products: Partial<IAPProduct>[] = [
+        { product_id: 'com.stackgamez.coins_100', name: '100 Coins Pack', product_type: 'consumable', coins_awarded: 100, price_tier_reference: 'tier_1', is_active: true },
+        { product_id: 'com.stackgamez.coins_550', name: '550 Coins Pack (10% Bonus)', product_type: 'consumable', coins_awarded: 550, price_tier_reference: 'tier_2', is_active: true },
+        { product_id: 'com.stackgamez.coins_1200', name: '1200 Coins Pack (20% Bonus)', product_type: 'consumable', coins_awarded: 1200, price_tier_reference: 'tier_3', is_active: true },
+        { product_id: 'com.stackgamez.powerup_bundle_small', name: 'Small Power-Up Bundle', product_type: 'consumable', coins_awarded: 0, items_awarded: {'power_ups': ['shield_x1', 'reroll_x2']}, price_tier_reference: 'tier_1', is_active: true },
+        // { product_id: 'com.stackgamez.vip_monthly', name: 'VIP Monthly Subscription', product_type: 'subscription', coins_awarded: 500, items_awarded: {'perks': ['vip_chat_badge', 'daily_bonus_multiplier_2x']}, is_active: true },
+    ];
+    for (const p of products) {
+        try {
+            const checkSql = 'SELECT product_id FROM iap_products WHERE product_id = ?';
+            const [existing]: [any[], any] = await pool.query(checkSql, [p.product_id]) as [any[], any];
+            if (existing.length === 0) {
+                const insertSql = 'INSERT INTO iap_products (product_id, name, description, product_type, coins_awarded, items_awarded, price_tier_reference, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())';
+                await pool.query(insertSql, [p.product_id, p.name, p.description, p.product_type, p.coins_awarded, p.items_awarded ? JSON.stringify(p.items_awarded) : null, p.price_tier_reference, p.is_active]);
+            }
+        } catch (error: any) { console.error(`Error seeding IAP product ${p.product_id}: ${error.message}`); }
+    }
+  }
+
 }

@@ -206,6 +206,151 @@ const runGameEngineDbTests = async () => {
   }
 };
 
-runGameEngineDbTests();
+// runGameEngineDbTests(); // Don't auto-run
 
 export { runGameEngineDbTests };
+
+
+// --- New Test Section for Generic Game Room Management ---
+const runGenericGameRoomTests = async () => {
+    console.log('\n--- Running Generic Game Room Management Tests (DB Mocked) ---');
+    let gameEngineService: GameEngineService;
+    const GAME_ID_TD = '5g_tower_defense';
+    const GAME_ID_CHESS = 'chess_router_wars';
+    const USER_ID_PLAYER_1 = 'player1_room_test';
+    const USER_ID_PLAYER_2 = 'player2_room_test';
+
+    const beforeEachRoomTest = () => {
+        gameEngineService = new GameEngineService();
+        clearMockDbResponses();
+        // Mock ensureGameMetadataExists for these game IDs if it's called internally
+        // For createGameRoom, it calls ensureGameMetadataExists:
+        // Mock: SELECT game_id (for 5g_tower_defense) -> returns nothing (so it will try to insert)
+        setMockDbResponse(mockSelectEmpty());
+        // Mock: INSERT game metadata (for 5g_tower_defense)
+        setMockDbResponse(mockOkPacket(1, GAME_ID_TD));
+        // Mock: SELECT game_id (for chess_router_wars) -> returns nothing
+        setMockDbResponse(mockSelectEmpty());
+        // Mock: INSERT game metadata (for chess_router_wars)
+        setMockDbResponse(mockOkPacket(1, GAME_ID_CHESS));
+    };
+
+    // Test: Create a PvE Tower Defense Room
+    beforeEachRoomTest();
+    // Mock: INSERT into game_rooms
+    setMockDbResponse(mockOkPacket(1, 'room_td_pve_123'));
+    try {
+        const room = await gameEngineService.createGameRoom(GAME_ID_TD, 'PvE', USER_ID_PLAYER_1, { map_id: 'corporate_network', difficulty: 'easy' });
+        assert(room.game_id === GAME_ID_TD, 'ROOM-CREATE-PVE-TD-1: Game ID should be Tower Defense.');
+        assert(room.game_type === 'PvE', 'ROOM-CREATE-PVE-TD-2: Game type should be PvE.');
+        assert(room.player1_id === USER_ID_PLAYER_1, 'ROOM-CREATE-PVE-TD-3: Player 1 ID correct.');
+        assert(room.player2_id === 'AI', 'ROOM-CREATE-PVE-TD-4: Player 2 should be AI for PvE.');
+        assert(room.status === 'active', 'ROOM-CREATE-PVE-TD-5: PvE room should be active.');
+        assert(room.current_game_state.map_id === 'corporate_network', 'ROOM-CREATE-PVE-TD-6: Game state initialized.');
+    } catch (e: any) {
+        assert(false, `ROOM-CREATE-PVE-TD-FAIL: Should not fail: ${e.message}`);
+    }
+
+    // Test: Create a PvP Chess Room (pending state)
+    beforeEachRoomTest();
+    // Mock: INSERT into game_rooms for Chess
+    setMockDbResponse(mockOkPacket(1, 'room_chess_pvp_456'));
+    try {
+        const room = await gameEngineService.createGameRoom(GAME_ID_CHESS, 'PvP', USER_ID_PLAYER_1, {});
+        assert(room.game_id === GAME_ID_CHESS, 'ROOM-CREATE-PVP-CHESS-1: Game ID should be Chess.');
+        assert(room.game_type === 'PvP', 'ROOM-CREATE-PVP-CHESS-2: Game type should be PvP.');
+        assert(room.player1_id === USER_ID_PLAYER_1, 'ROOM-CREATE-PVP-CHESS-3: Player 1 ID correct.');
+        assert(room.player2_id === null, 'ROOM-CREATE-PVP-CHESS-4: Player 2 should be null initially.');
+        assert(room.status === 'pending', 'ROOM-CREATE-PVP-CHESS-5: PvP room should be pending.');
+        assert(room.current_game_state.board_state !== undefined, 'ROOM-CREATE-PVP-CHESS-6: Chess game state initialized.');
+    } catch (e: any) {
+        assert(false, `ROOM-CREATE-PVP-CHESS-FAIL: Should not fail: ${e.message}`);
+    }
+
+    // Test: Join a PvP Chess Room
+    beforeEachRoomTest();
+    const PENDING_CHESS_ROOM_ID = 'room_chess_pvp_to_join';
+    // 1. Create a pending room first (for joinGameRoom to find)
+    //    Mock ensureGameMetadataExists for chess
+    setMockDbResponse(mockSelectEmpty());
+    setMockDbResponse(mockOkPacket(1, GAME_ID_CHESS));
+    //    Mock INSERT for game_rooms (initial creation)
+    setMockDbResponse(mockOkPacket(1, PENDING_CHESS_ROOM_ID));
+    const createdRoom = await gameEngineService.createGameRoom(GAME_ID_CHESS, 'PvP', USER_ID_PLAYER_1, {});
+
+    clearMockDbResponses(); // Clear mocks from createGameRoom before setting mocks for joinGameRoom
+    // Mocks for joinGameRoom:
+    // 1. getGameRoomState (first call in joinGameRoom) - returns the pending room
+    setMockDbResponse({ rows: [{ ...createdRoom, current_game_state: JSON.stringify(createdRoom.current_game_state), game_settings: JSON.stringify(createdRoom.game_settings) }] });
+    // 2. UPDATE game_rooms (to set player2_id and status to active)
+    setMockDbResponse(mockOkPacket(1,1));
+    // 3. getGameRoomState (second call, to return updated room)
+    const roomAfterJoin = { ...createdRoom, player2_id: USER_ID_PLAYER_2, status: 'active' as 'active', started_at: new Date().toISOString() };
+    setMockDbResponse({ rows: [{ ...roomAfterJoin, current_game_state: JSON.stringify(roomAfterJoin.current_game_state), game_settings: JSON.stringify(roomAfterJoin.game_settings) }] });
+    try {
+        const joinedRoom = await gameEngineService.joinGameRoom(PENDING_CHESS_ROOM_ID, USER_ID_PLAYER_2);
+        assert(joinedRoom !== null, 'ROOM-JOIN-PVP-1: Room should be returned after join.');
+        assert(joinedRoom?.player2_id === USER_ID_PLAYER_2, 'ROOM-JOIN-PVP-2: Player 2 ID set.');
+        assert(joinedRoom?.status === 'active', 'ROOM-JOIN-PVP-3: Room status should be active.');
+    } catch (e: any) {
+        assert(false, `ROOM-JOIN-PVP-FAIL: Should not fail: ${e.message} (Make sure mocks are correctly sequenced)`);
+    }
+
+    // Test: Submit a player action (mocked Chess move)
+    beforeEachRoomTest();
+    const ACTIVE_CHESS_ROOM_ID = 'room_chess_active_action';
+    // 1. Setup: Create an active PvP chess room (conceptually)
+    const activeChessRoomState: GameRoom = {
+        room_id: ACTIVE_CHESS_ROOM_ID, game_id: GAME_ID_CHESS, game_type: 'PvP', status: 'active',
+        player1_id: USER_ID_PLAYER_1, player2_id: USER_ID_PLAYER_2,
+        current_game_state: gameLogicHandlers[GAME_ID_CHESS].initializeGameState(ACTIVE_CHESS_ROOM_ID, GAME_ID_CHESS, [USER_ID_PLAYER_1, USER_ID_PLAYER_2], {}),
+        current_turn_player_id: USER_ID_PLAYER_1, // Player 1's turn
+        created_at: new Date().toISOString(), last_activity_at: new Date().toISOString(), started_at: new Date().toISOString()
+    };
+    // Mocks for submitPlayerAction:
+    // 1. getGameRoomState (first call in submitPlayerAction)
+    setMockDbResponse({ rows: [{ ...activeChessRoomState, current_game_state: JSON.stringify(activeChessRoomState.current_game_state), game_settings: JSON.stringify(activeChessRoomState.game_settings) }]});
+    // 2. UPDATE game_rooms (after action is processed by logic handler)
+    setMockDbResponse(mockOkPacket(1,1));
+    // 3. getGameRoomState (to return updated room) - assume a simple state change for mock
+    const stateAfterMockMove = { ...activeChessRoomState.current_game_state, current_turn_player_id: USER_ID_PLAYER_2 }; // Simplified
+    const roomAfterAction = { ...activeChessRoomState, current_game_state: stateAfterMockMove, current_turn_player_id: USER_ID_PLAYER_2 };
+    setMockDbResponse({ rows: [{ ...roomAfterAction, current_game_state: JSON.stringify(stateAfterMockMove), game_settings: JSON.stringify(roomAfterAction.game_settings) }]});
+
+    const mockChessMove = { type: 'MOVE_PIECE', from_square: 'e2', to_square: 'e4' }; // This is action_data
+    try {
+        const updatedRoom = await gameEngineService.submitPlayerAction(ACTIVE_CHESS_ROOM_ID, USER_ID_PLAYER_1, mockChessMove);
+        assert(updatedRoom !== null, 'ROOM-ACTION-CHESS-1: Updated room should be returned.');
+        assert(updatedRoom?.current_game_state.current_turn_player_id === USER_ID_PLAYER_2, 'ROOM-ACTION-CHESS-2: Turn should change (mocked logic).');
+    } catch (e: any) {
+        assert(false, `ROOM-ACTION-CHESS-FAIL: Should not fail: ${e.message}`);
+    }
+
+
+    console.log('\n--- Generic Game Room Test Summary ---');
+    // This summary count will be off because it uses global counters.
+    // In a real test runner, `describe` blocks would isolate counts.
+    // For now, observe console output for "Assertion Passed/Failed".
+};
+
+
+const runAllGameEngineTests = async () => {
+    await runGameEngineDbTests(); // Original tests for metadata, results, Ludo in-memory
+    await runGenericGameRoomTests(); // New tests for generic room management
+
+    console.log('\n--- OVERALL GameEngineService Test Summary ---');
+    console.log(`Total Successes: ${(globalThis as any).gameEngineTestSuccesses || 0}`);
+    console.log(`Total Failures: ${(globalThis as any).gameEngineTestFailures || 0}`);
+    if ((globalThis as any).gameEngineTestFailures > 0) {
+        console.error('SOME GAME ENGINE SERVICE TESTS FAILED!');
+    } else {
+        console.log('All GameEngineService tests passed (conceptually)!');
+    }
+};
+
+// If running this file directly:
+if (typeof require !== 'undefined' && require.main === module) {
+    runAllGameEngineTests();
+}
+
+export { runAllGameEngineTests };

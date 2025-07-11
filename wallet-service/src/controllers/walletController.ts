@@ -1,7 +1,11 @@
 import { WalletService } from '../services/walletService';
-import { DepositRequestBody, WithdrawalRequestBody, DebitRequestBody, CreditRequestBody } from '../types/wallet.types';
+import {
+    DepositRequestBody, WithdrawalRequestBody, DebitRequestBody, CreditRequestBody,
+    ValidateGooglePurchaseRequest, ValidateApplePurchaseRequest, ClaimAdRewardRequest
+} from '../types/wallet.types';
 
-type Request = any; // { params: { userId: string }, body: any, query: any }
+// Assume req.user.id is populated by auth middleware for endpoints needing the current user's ID
+type Request = any; // { params: { userId?: string }, body: any, query: any, user?: { id: string } }
 type Response = any;
 
 const walletService = new WalletService();
@@ -90,5 +94,86 @@ export const getTransactionsForUser = async (req: Request, res: Response) => {
         return { statusCode: 200, body: transactions };
     } catch (error: any) {
         return { statusCode: 500, body: { message: error.message } };
+    }
+};
+
+// --- IAP and Ad Reward Controllers ---
+
+export const listIAPProductsController = async (req: Request, res: Response) => {
+    try {
+        const products = await walletService.listIAPProducts();
+        return { statusCode: 200, body: products };
+    } catch (error: any) {
+        console.error('[WalletController] ListIAPProducts error:', error.message);
+        return { statusCode: 500, body: { message: 'Failed to retrieve IAP products.' } };
+    }
+};
+
+export const validateGooglePurchaseController = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id; // Authenticated user making the purchase
+        if (!userId) return { statusCode: 401, body: { message: 'User not authenticated.'}};
+
+        const { product_id, purchase_token, order_id } = req.body as ValidateGooglePurchaseRequest;
+        if (!product_id || !purchase_token) {
+            return { statusCode: 400, body: { message: 'product_id and purchase_token are required.' }};
+        }
+        const result = await walletService.validateGooglePlayPurchase(userId, product_id, purchase_token, order_id);
+        return { statusCode: result.success ? 200 : 400, body: result };
+    } catch (error: any) {
+        console.error('[WalletController] ValidateGooglePurchase error:', error.message);
+        const statusCode = error.message.includes('not found') ? 404 : 500;
+        return { statusCode, body: { message: error.message } };
+    }
+};
+
+export const validateApplePurchaseController = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return { statusCode: 401, body: { message: 'User not authenticated.'}};
+
+        const { product_id, transaction_receipt, original_transaction_id } = req.body as ValidateApplePurchaseRequest;
+         if (!product_id || !transaction_receipt) {
+            return { statusCode: 400, body: { message: 'product_id and transaction_receipt are required.' }};
+        }
+        const result = await walletService.validateAppleAppStorePurchase(userId, product_id, transaction_receipt, original_transaction_id);
+        return { statusCode: result.success ? 200 : 400, body: result };
+    } catch (error: any) {
+        console.error('[WalletController] ValidateApplePurchase error:', error.message);
+        const statusCode = error.message.includes('not found') ? 404 : 500;
+        return { statusCode, body: { message: error.message } };
+    }
+};
+
+export const claimAdRewardController = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return { statusCode: 401, body: { message: 'User not authenticated.'}};
+
+        const { ad_network, reward_type, reward_amount, verification_payload } = req.body as ClaimAdRewardRequest;
+        if (!ad_network || !reward_type || reward_amount === undefined || reward_amount <=0) {
+            return { statusCode: 400, body: { message: 'ad_network, reward_type, and a positive reward_amount are required.' }};
+        }
+        if (ad_network !== 'admob') { // Example if only admob supported for now
+            return { statusCode: 400, body: { message: 'Unsupported ad network.' }};
+        }
+
+        const result = await walletService.claimAdReward(userId, ad_network, reward_type, reward_amount, verification_payload);
+        return { statusCode: result.success ? 200 : 400, body: result };
+    } catch (error: any) {
+        console.error('[WalletController] ClaimAdReward error:', error.message);
+        return { statusCode: 500, body: { message: error.message } };
+    }
+};
+
+// Conceptual endpoint for seeding IAP products (dev/admin only)
+export const seedIAPProductsController = async (req: Request, res: Response) => {
+    try {
+        // TODO: Add admin role check here via middleware if this were a real endpoint
+        await walletService.__seedIAPProducts();
+        return { statusCode: 200, body: { message: "IAP products seeded conceptually."}};
+    } catch (error: any) {
+        console.error('[WalletController] SeedIAPProducts error:', error.message);
+        return { statusCode: 500, body: { message: error.message }};
     }
 };

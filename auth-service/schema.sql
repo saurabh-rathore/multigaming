@@ -8,6 +8,8 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE,   -- Email address, should be unique and is used for login
     password_hash VARCHAR(255) NOT NULL, -- Hashed password
     status VARCHAR(50) DEFAULT 'pending_verification', -- e.g., pending_verification, active, suspended, banned
+    phone_verified BOOLEAN DEFAULT FALSE,
+    is_otp_enabled BOOLEAN DEFAULT FALSE, -- For 2FA
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -31,5 +33,22 @@ CREATE TABLE sessions (
 
 -- Adding some basic indexes for performance
 CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_phone ON users(phone); -- Index for phone number lookups
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+
+-- OTP Codes table
+-- Stores OTP codes for phone verification or 2FA.
+CREATE TABLE otp_codes (
+    id VARCHAR(255) PRIMARY KEY,
+    phone VARCHAR(20) NOT NULL,          -- Phone number the OTP was sent to
+    otp_hash VARCHAR(255) NOT NULL,      -- Hashed OTP code
+    purpose VARCHAR(50) DEFAULT 'verification', -- e.g., 'verification', 'login_2fa', 'password_reset'
+    used BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_otp_codes_phone ON otp_codes(phone);
+CREATE INDEX idx_otp_codes_expires_at ON otp_codes(expires_at);

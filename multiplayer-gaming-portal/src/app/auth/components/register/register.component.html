@@ -1,66 +1,58 @@
-<div class="row justify-content-center">
-  <div class="col-md-6 col-lg-5">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="card-title text-center mb-4">Register</h2>
-        <form (ngSubmit)="onSubmit()" #registerForm="ngForm">
-          <div class="mb-3">
-            <label for="regEmail" class="form-label">Email address</label>
-            <input type="email" class="form-control" id="regEmail" name="regEmail"
-                   [(ngModel)]="registrationData.email" required email #regEmailField="ngModel">
-            <div *ngIf="regEmailField.invalid && (regEmailField.dirty || regEmailField.touched)" class="text-danger mt-1 small">
-              <div *ngIf="regEmailField.errors?.['required']">Email is required.</div>
-              <div *ngIf="regEmailField.errors?.['email']">Please enter a valid email.</div>
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label for="regPhone" class="form-label">Phone Number (Optional)</label>
-            <input type="tel" class="form-control" id="regPhone" name="regPhone"
-                   [(ngModel)]="registrationData.phone">
-          </div>
-
-          <div class="mb-3">
-            <label for="regPassword" class="form-label">Password</label>
-            <input type="password" class="form-control" id="regPassword" name="regPassword"
-                   [(ngModel)]="registrationData.password" required minlength="6" #regPasswordField="ngModel">
-            <div *ngIf="regPasswordField.invalid && (regPasswordField.dirty || regPasswordField.touched)" class="text-danger mt-1 small">
-              <div *ngIf="regPasswordField.errors?.['required']">Password is required.</div>
-              <div *ngIf="regPasswordField.errors?.['minlength']">Password must be at least 6 characters.</div>
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label for="confirmPassword" class="form-label">Confirm Password</label>
-            <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
-                   [(ngModel)]="confirmPassword" required #confirmPasswordField="ngModel"
-                   [class.is-invalid]="confirmPasswordField.value && !passwordsMatch() && registerForm.submitted">
-            <div *ngIf="confirmPasswordField.invalid && (confirmPasswordField.dirty || confirmPasswordField.touched)" class="text-danger mt-1 small">
-                <div *ngIf="confirmPasswordField.errors?.['required'] && registerForm.submitted">Confirm password is required.</div>
-            </div>
-             <div *ngIf="confirmPasswordField.value && !passwordsMatch() && (registerForm.submitted || confirmPasswordField.touched)" class="text-danger mt-1 small">
-                Passwords do not match.
-            </div>
-          </div>
-
-          <div *ngIf="errorMessage" class="alert alert-danger mt-3">
-            {{ errorMessage }}
-          </div>
-          <div *ngIf="successMessage" class="alert alert-success mt-3">
-            {{ successMessage }}
-          </div>
-
-          <div class="d-grid">
-            <button type="submit" class="btn btn-primary" [disabled]="registerForm.invalid || isLoading || (confirmPasswordField.value && !passwordsMatch())">
-               <span *ngIf="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              {{ isLoading ? 'Registering...' : 'Register' }}
-            </button>
-          </div>
-        </form>
-        <p class="mt-3 text-center">
-          Already have an account? <a routerLink="/login">Login here</a>
-        </p>
+<div class="register-container">
+  <h2>Register</h2>
+  <form [formGroup]="registrationForm" (ngSubmit)="onSubmit()">
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" formControlName="email" class="form-control" placeholder="Enter your email">
+      <div *ngIf="emailControl?.invalid && (emailControl?.dirty || emailControl?.touched)" class="error-message alert alert-danger">
+        <small *ngIf="emailControl?.errors?.['required']">Email is required.</small>
+        <small *ngIf="emailControl?.errors?.['email']">Please enter a valid email address.</small>
       </div>
     </div>
+
+    <div class="form-group">
+      <label for="phone">Phone Number (Optional, for OTP features like 2FA)</label>
+      <input type="tel" id="phone" formControlName="phone" class="form-control" placeholder="e.g., +11234567890">
+      <div *ngIf="phoneControl?.invalid && (phoneControl?.dirty || phoneControl?.touched)" class="error-message alert alert-danger">
+        <small *ngIf="phoneControl?.errors?.['pattern']">Please enter a valid phone number in E.164 format (e.g., +11234567890).</small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" formControlName="password" class="form-control" placeholder="Choose a password (min. 6 characters)">
+      <div *ngIf="passwordControl?.invalid && (passwordControl?.dirty || passwordControl?.touched)" class="error-message alert alert-danger">
+        <small *ngIf="passwordControl?.errors?.['required']">Password is required.</small>
+        <small *ngIf="passwordControl?.errors?.['minlength']">Password must be at least 6 characters long.</small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="confirmPassword">Confirm Password</label>
+      <input type="password" id="confirmPassword" formControlName="confirmPassword" class="form-control" placeholder="Confirm your password">
+      <div *ngIf="confirmPasswordControl?.invalid && (confirmPasswordControl?.dirty || confirmPasswordControl?.touched)" class="error-message alert alert-danger">
+        <small *ngIf="confirmPasswordControl?.errors?.['required']">Confirming password is required.</small>
+      </div>
+      <div *ngIf="registrationForm.errors?.['passwordMismatch'] && (passwordControl?.dirty || confirmPasswordControl?.dirty)" class="error-message alert alert-danger">
+        <small>Passwords do not match.</small>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" [disabled]="registrationForm.invalid || isLoading">
+      <span *ngIf="!isLoading">Register</span>
+      <span *ngIf="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+      <span *ngIf="isLoading"> Registering...</span>
+    </button>
+  </form>
+
+  <div *ngIf="errorMessage" class="error-message alert alert-danger mt-3">
+    {{ errorMessage }}
+  </div>
+  <div *ngIf="successMessage && !errorMessage" class="success-message alert alert-success mt-3">
+    {{ successMessage }}
+  </div>
+
+  <div class="mt-3">
+    <p>Already have an account? <a routerLink="/login">Login here</a></p>
   </div>
 </div>

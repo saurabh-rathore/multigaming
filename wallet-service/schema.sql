@@ -66,3 +66,66 @@ CREATE INDEX idx_transactions_type ON transactions(type);
 CREATE INDEX idx_transactions_status ON transactions(status);
 CREATE INDEX idx_transactions_external_payment_id ON transactions(external_payment_id);
 CREATE INDEX idx_transactions_internal_reference_id ON transactions(internal_reference_id);
+
+-- In-App Purchase Products table
+-- Defines the virtual products available for purchase.
+CREATE TABLE iap_products (
+    product_id VARCHAR(255) PRIMARY KEY,       -- Matches product ID in Google Play Store / Apple App Store
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    product_type VARCHAR(50) NOT NULL DEFAULT 'consumable' CHECK (product_type IN ('consumable', 'non_consumable', 'subscription')),
+
+    coins_awarded INT DEFAULT 0,                -- Number of virtual coins awarded upon purchase
+    items_awarded JSON,                         -- e.g., {"power_ups": ["shield_x1", "skip_turn_x1"], "avatar_items": ["cool_hat_id"]}
+
+    price_tier_reference VARCHAR(100),          -- Optional: Reference to a price tier (e.g., "tier_1", "tier_5_usd")
+                                                -- Actual price is managed in platform stores.
+    is_active BOOLEAN DEFAULT TRUE,             -- Whether this product is currently available for purchase
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_iap_products_active_type ON iap_products(is_active, product_type);
+
+
+-- Purchase Transactions table
+-- Records IAP transactions and their validation status.
+CREATE TABLE purchase_transactions (
+    purchase_transaction_id VARCHAR(255) PRIMARY KEY, -- Internal unique ID for this record
+    user_id VARCHAR(255) NOT NULL,
+    wallet_id VARCHAR(255) NOT NULL,           -- Wallet to credit upon successful validation
+    product_id VARCHAR(255) NOT NULL,          -- FK to iap_products.product_id
+
+    platform VARCHAR(10) NOT NULL CHECK (platform IN ('google', 'apple', 'unknown')), -- 'google' for Play Store, 'apple' for App Store
+    platform_order_id VARCHAR(255) UNIQUE,     -- Original orderId from Google Play (GPA.xxxx-xxxx-xxxx-xxxxx) or originalTransactionIdentifier from Apple
+    platform_purchase_token TEXT,              -- purchaseToken from Google Play, or transactionReceipt (deprecated) / JWS from Apple (for validation)
+
+    status VARCHAR(50) NOT NULL DEFAULT 'initiated' CHECK (status IN (
+        'initiated',        -- Purchase initiated by client, server record created before validation
+        'pending_validation',-- Sent to platform for validation
+        'validated',        -- Successfully validated by platform, items/currency granted
+        'consumed',         -- For consumable items, acknowledged with platform after granting
+        'failed_validation',
+        'refunded',         -- If platform indicates a refund
+        'expired'           -- If purchase token/receipt expires before validation
+    )),
+
+    receipt_data_hash VARCHAR(255),            -- Optional: Hash of the receipt_data to detect duplicates if full receipt is too large or sensitive for direct storage
+    validation_response JSON,                  -- Store response from Google/Apple validation for audit
+
+    items_granted BOOLEAN DEFAULT FALSE,       -- Flag to ensure items/currency are granted only once
+
+    initiated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- When this record was created (client reports purchase)
+    validated_at TIMESTAMP NULL,               -- When platform validation was successful
+    consumed_at TIMESTAMP NULL,                -- When consumable was marked as consumed with platform
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (wallet_id) REFERENCES wallets(wallet_id),
+    FOREIGN KEY (product_id) REFERENCES iap_products(product_id)
+    -- Conceptual FK for user_id
+);
+
+CREATE INDEX idx_purchase_transactions_user_id ON purchase_transactions(user_id);
+CREATE INDEX idx_purchase_transactions_status ON purchase_transactions(status);
+CREATE INDEX idx_purchase_transactions_platform_order_id ON purchase_transactions(platform_order_id);
+CREATE INDEX idx_purchase_transactions_product_id ON purchase_transactions(product_id);

@@ -82,6 +82,14 @@ components:
           enum: [pending_verification, active, suspended, banned]
           description: Current status of the user account.
           example: "active"
+        phone_verified:
+          type: boolean
+          description: Indicates if the user's phone number has been verified.
+          example: true
+        is_otp_enabled:
+          type: boolean
+          description: Indicates if OTP-based Two-Factor Authentication (2FA) is enabled for the user.
+          example: false
         created_at:
           type: string
           format: date-time
@@ -103,6 +111,134 @@ components:
         user:
           $ref: '#/components/schemas/UserResponse'
           description: Details of the authenticated user.
+        otp_required:
+          type: boolean
+          description: >
+            Indicates if OTP is required for login (e.g., for 2FA).
+            If true, the 'token' will be empty, and the client should proceed to OTP verification.
+          example: false
+
+    OtpRequest:
+      type: object
+      required:
+        - phone
+      properties:
+        phone:
+          type: string
+          description: >
+            User's phone number in E.164 format (e.g., +11234567890) to send OTP to.
+          example: "+11234567890"
+        purpose:
+          type: string
+          enum: [verification, login, login_2fa, password_reset]
+          description: Purpose of the OTP request. Determines behavior post-verification.
+          default: verification
+          example: verification
+
+    OtpResponse: # For OTP request
+      type: object
+      properties:
+        message:
+          type: string
+          description: Confirmation message.
+          example: "OTP has been sent to your phone number."
+        otp_retry_delay_seconds:
+          type: integer
+          format: int32
+          description: Recommended delay in seconds before user can request another OTP.
+          example: 60
+
+    OtpVerificationRequest:
+      type: object
+      required:
+        - phone
+        - otp
+      properties:
+        phone:
+          type: string
+          description: User's phone number in E.164 format.
+          example: "+11234567890"
+        otp:
+          type: string
+          description: The OTP code entered by the user.
+          example: "123456"
+          minLength: 4 # Assuming OTPs are at least 4 digits, typically 6
+          maxLength: 8
+        purpose:
+          type: string
+          enum: [verification, login, login_2fa, password_reset]
+          description: Purpose of the OTP verification (should match the request purpose).
+          default: verification
+          example: verification
+
+    OtpVerificationSuccessResponse: # For OTP verification success
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message.
+          example: "OTP verified successfully."
+        token: # Only present if OTP verification results in login (e.g. 2FA completion)
+          type: string
+          nullable: true
+          description: JWT access token if login is completed.
+          example: "placeholder_jwt_for_id_123_session_456"
+        user: # User details, potentially updated (e.g. phone_verified status)
+          $ref: '#/components/schemas/UserResponse'
+          nullable: true
+
+    SetTwoFactorAuthRequest:
+      type: object
+      required:
+        - enable
+      properties:
+        enable:
+          type: boolean
+          description: Set to true to enable 2FA, false to disable.
+          example: true
+
+    SetTwoFactorAuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "2FA enabled successfully."
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    GuestUserMinifiedResponse: # For embedding in GuestAuthResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The unique guest identifier.
+          example: "gst_1673834738_abc123"
+        username:
+          type: string
+          description: Display name for the guest.
+          example: "Guest-abc123"
+        is_guest:
+          type: boolean
+          description: Always true for guest users.
+          example: true
+
+    GuestAuthResponse:
+      type: object
+      required:
+        - token
+        - guest_id
+      properties:
+        token:
+          type: string
+          description: JWT access token for the guest session.
+          example: "placeholder_jwt_for_guest_gst_1673834738_abc123_is_guest_true_expires_3h"
+        guest_id:
+          type: string
+          description: The unique identifier for this guest session.
+          example: "gst_1673834738_abc123"
+        user: # Optional, for frontend convenience to have a user-like object
+          $ref: '#/components/schemas/GuestUserMinifiedResponse'
+
 
     RefreshTokenRequest:
       type: object
@@ -288,7 +424,287 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-# Can also add tags definition for better organization in UI tools
-tags:
-  - name: Authentication
-    description: Operations related to user authentication, registration, and token management.
+  # Global security (can be overridden at operation level)
+  # For Auth service, most endpoints are public, except potentially /refresh or a /me endpoint.
+  # security:
+  #   - BearerAuth: [] # Applies BearerAuth to all operations unless overridden
+
+  # Tags for grouping operations
+  tags:
+    - name: Authentication
+      description: User registration, login, and core authentication operations.
+    - name: OTP
+      description: Operations related to One-Time Password (OTP) generation and verification.
+    - name: Two-Factor Authentication (2FA)
+      description: Operations for managing Two-Factor Authentication settings.
+    - name: Guest Mode
+      description: Operations related to guest user access.
+
+paths:
+  /auth/guest-login:
+    post:
+      summary: Log in as a Guest
+      description: Creates a temporary guest session and returns a JWT for limited access.
+      operationId: guestLogin
+      tags:
+        - Guest Mode
+      responses:
+        '200':
+          description: Guest login successful. Returns guest JWT and guest ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestAuthResponse'
+        '500':
+          description: An unexpected error occurred on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: Creates a new user account with the provided email, password, and optional phone number. If a phone number is provided, an OTP will be sent to it for verification, but registration proceeds regardless.
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        description: User registration details.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+      responses:
+        '201': # Created
+          description: User registered successfully. Returns the new user's details. If phone was provided, an OTP has been dispatched for verification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse' # UserResponse now includes phone_verified and is_otp_enabled
+        '400': # Bad Request
+          description: Invalid input (e.g., missing fields, password too short, invalid email format).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409': # Conflict
+          description: User with this email already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500': # Internal Server Error
+          description: An unexpected error occurred on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: Log in an existing user
+      description: >
+        Authenticates a user with their email and password.
+        If 2FA is enabled and phone is verified, it returns an `otp_required: true` flag and no token, prompting for OTP verification via `/auth/otp/verify` with purpose `login_2fa`.
+        Otherwise, returns a JWT and user details upon success.
+      operationId: loginUser
+      tags:
+        - Authentication
+      requestBody:
+        description: User login credentials.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+      responses:
+        '200': # OK
+          description: >
+            Login successful or OTP required for 2FA.
+            If `otp_required` is true, the client must call `/auth/otp/verify`.
+            Otherwise, JWT and user details are returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse' # AuthSuccessResponse now includes otp_required
+        '400': # Bad Request
+          description: Invalid input (e.g., missing fields).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401': # Unauthorized
+          description: Invalid credentials or user account not active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500': # Internal Server Error
+          description: An unexpected error occurred on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/otp/request:
+    post:
+      summary: Request an OTP
+      description: Generates and sends an OTP to the user's phone number for a specified purpose (e.g., phone verification, 2FA).
+      operationId: requestOtp
+      tags:
+        - OTP
+      requestBody:
+        description: Phone number and purpose for OTP.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '200': # OK
+          description: OTP sent successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpResponse'
+        '400': # Bad Request
+          description: Invalid input (e.g., missing phone, invalid phone format).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429': # Too Many Requests
+          description: OTP request rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                value: { statusCode: 429, message: "Please wait for 60 seconds before requesting another OTP." }
+        '500': # Internal Server Error
+          description: Failed to generate or send OTP.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/otp/verify:
+    post:
+      summary: Verify an OTP
+      description: >
+        Verifies an OTP code provided by the user.
+        If successful for `phone_verification` purpose, updates user's `phone_verified` status.
+        If successful for `login_2fa` purpose, completes the login process and returns a JWT and user details.
+      operationId: verifyOtp
+      tags:
+        - OTP
+      requestBody:
+        description: Phone number, OTP code, and purpose.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerificationRequest'
+      responses:
+        '200': # OK
+          description: OTP verified successfully. Response may include JWT and user details if login is completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpVerificationSuccessResponse'
+        '400': # Bad Request
+          description: Invalid input (e.g., missing fields, invalid OTP).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InvalidOtp:
+                  value: { statusCode: 400, message: "Invalid or expired OTP. Please request a new one." }
+        '500': # Internal Server Error
+          description: An unexpected error occurred during OTP verification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/2fa/settings:
+    put:
+      summary: Configure Two-Factor Authentication (2FA)
+      description: Allows an authenticated user to enable or disable OTP-based 2FA for their account. User's phone must be verified to enable 2FA.
+      operationId: configureTwoFactorAuth
+      tags:
+        - Two-Factor Authentication (2FA)
+      security:
+        - BearerAuth: [] # This endpoint requires authentication
+      requestBody:
+        description: Specify whether to enable or disable 2FA.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTwoFactorAuthRequest'
+      responses:
+        '200': # OK
+          description: 2FA settings updated successfully. Returns the updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetTwoFactorAuthResponse'
+        '400': # Bad Request
+          description: Invalid request (e.g., phone not verified when trying to enable 2FA).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                  value: { statusCode: 400, message: "Phone number must be verified before enabling 2FA." }
+        '401': # Unauthorized
+          description: User not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500': # Internal Server Error
+          description: An unexpected error occurred.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh: # Conceptual endpoint
+    post:
+      summary: Refresh access token
+      description: Obtains a new JWT access token using a valid refresh token.
+      operationId: refreshToken
+      tags:
+        - Authentication
+      # security: # This endpoint might not need BearerAuth if refresh token is self-contained
+      requestBody:
+        description: Refresh token.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200': # OK
+          description: New access token generated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse' # Should ideally be a simpler response with just new token
+        '401': # Unauthorized
+          description: Invalid or expired refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500': # Internal Server Error
+          description: An unexpected error occurred on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
