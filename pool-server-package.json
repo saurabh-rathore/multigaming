@@ -1,0 +1,18 @@
+{
+  "name": "pool-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "pool-server-server.js",
+  "scripts": {
+    "start": "node pool-server-server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "matter-js": "^0.17.1",
+    "socket.io": "^4.1.2",
+    "sqlite3": "^5.0.2"
+  }
+}
