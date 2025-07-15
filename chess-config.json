@@ -1,0 +1,10 @@
+{
+    "api": {
+        "host": "localhost",
+        "port": 4000
+    },
+    "socket": {
+        "host": "localhost",
+        "port": 4000
+    }
+}
