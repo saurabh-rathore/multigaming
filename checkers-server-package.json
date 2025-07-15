@@ -1,0 +1,17 @@
+{
+  "name": "checkers-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "checkers-server-server.js",
+  "scripts": {
+    "start": "node checkers-server-server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "socket.io": "^4.1.2",
+    "sqlite3": "^5.0.2"
+  }
+}
