@@ -1,0 +1,17 @@
+{
+  "name": "pong-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "pong-server-server.js",
+  "scripts": {
+    "start": "node pong-server-server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "socket.io": "^4.1.2",
+    "sqlite3": "^5.0.2"
+  }
+}
