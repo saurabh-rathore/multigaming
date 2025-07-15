@@ -1,0 +1,17 @@
+{
+  "name": "ludo-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "ludo-server-server.js",
+  "scripts": {
+    "start": "node ludo-server-server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "socket.io": "^4.1.2",
+    "sqlite3": "^5.0.2"
+  }
+}
