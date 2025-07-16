@@ -18,6 +18,12 @@ import { QuestsComponent } from './quests/quests.component';
 import { MatchmakingComponent } from './matchmaking/matchmaking.component';
 import { LobbyComponent } from './lobby/lobby.component';
 import { ReplaysComponent } from './replays/replays.component';
+import { ChessComponent } from './chess/chess.component';
+import { LudoComponent } from './ludo/ludo.component';
+import { SnakeComponent } from './snake/snake.component';
+import { PongComponent } from './pong/pong.component';
+import { CheckersComponent } from './checkers/checkers.component';
+import { BattleshipComponent } from './battleship/battleship.component';
 
 const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
 
@@ -36,7 +42,13 @@ const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
     QuestsComponent,
     MatchmakingComponent,
     LobbyComponent,
-    ReplaysComponent
+    ReplaysComponent,
+    ChessComponent,
+    LudoComponent,
+    SnakeComponent,
+    PongComponent,
+    CheckersComponent,
+    BattleshipComponent
   ],
   imports: [
     BrowserModule,

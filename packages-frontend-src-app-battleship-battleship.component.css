@@ -1,0 +1,29 @@
+.grid-container {
+    display: flex;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(10, 30px);
+    grid-template-rows: repeat(10, 30px);
+    border: 1px solid black;
+    margin: 20px;
+}
+
+.cell {
+    width: 30px;
+    height: 30px;
+    border: 1px solid black;
+}
+
+.ship {
+    background-color: gray;
+}
+
+.hit {
+    background-color: red;
+}
+
+.miss {
+    background-color: blue;
+}
