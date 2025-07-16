@@ -1,8 +1,22 @@
 <div *ngIf="user">
   <h2>{{ user.username }}</h2>
+  <p>Level: {{ user.level }}</p>
+  <p>XP: {{ user.xp }} / {{ user.level * 100 }}</p>
   <p>Points: {{ user.points }}</p>
+  <p>Currency: {{ user.currency }}</p>
   <h3>Badges:</h3>
   <ul>
-    <li *ngFor="let badge of user.badges">{{ badge.name }}</li>
+    <li *ngFor="let badge of user.badges">
+      <strong>{{ badge.name }}:</strong> {{ badge.description }}
+    </li>
+  </ul>
+  <h3>Game History:</h3>
+  <ul>
+    <li *ngFor="let game of user.gameHistory">
+      {{ game.game_name }} -
+      <span *ngIf="game.is_draw">Draw</span>
+      <span *ngIf="!game.is_draw && game.winner_id === user.id">Win</span>
+      <span *ngIf="!game.is_draw && game.loser_id === user.id">Loss</span>
+    </li>
   </ul>
 </div>

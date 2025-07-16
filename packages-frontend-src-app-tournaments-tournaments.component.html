@@ -1,0 +1,15 @@
+<div>
+  <h3>Tournaments</h3>
+  <ul>
+    <li *ngFor="let tournament of tournaments">
+      {{ tournament.name }} ({{ tournament.game_name }})
+      <button (click)="joinTournament(tournament.id)">Join</button>
+    </li>
+  </ul>
+  <div>
+    <h4>Create Tournament</h4>
+    <input [(ngModel)]="newTournamentName" placeholder="Tournament Name">
+    <input [(ngModel)]="newTournamentGame" placeholder="Game Name">
+    <button (click)="createTournament()">Create</button>
+  </div>
+</div>

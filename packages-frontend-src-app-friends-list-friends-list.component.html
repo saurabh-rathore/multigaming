@@ -1,0 +1,15 @@
+<div>
+  <h3>Friends</h3>
+  <ul>
+    <li *ngFor="let friend of friends">
+      {{ friend.username }}
+      <button (click)="removeFriend(friend.id)">Remove</button>
+      <button (click)="openPrivateChat(friend)">Chat</button>
+    </li>
+  </ul>
+  <div>
+    <input [(ngModel)]="newFriend" placeholder="Friend's username">
+    <button (click)="addFriend()">Add Friend</button>
+  </div>
+  <app-private-chat [friend]="selectedFriend"></app-private-chat>
+</div>

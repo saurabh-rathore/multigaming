@@ -10,6 +10,11 @@ import { GameComponent } from './game/game.component';
 import { ProfileComponent } from './profile/profile.component';
 import { LeaderboardComponent } from './leaderboard/leaderboard.component';
 import { ChatComponent } from './chat/chat.component';
+import { FriendsListComponent } from './friends-list/friends-list.component';
+import { PrivateChatComponent } from './private-chat/private-chat.component';
+import { GuildsComponent } from './guilds/guilds.component';
+import { TournamentsComponent } from './tournaments/tournaments.component';
+import { QuestsComponent } from './quests/quests.component';
 
 const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
 
@@ -20,7 +25,12 @@ const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
     GameComponent,
     ProfileComponent,
     LeaderboardComponent,
-    ChatComponent
+    ChatComponent,
+    FriendsListComponent,
+    PrivateChatComponent,
+    GuildsComponent,
+    TournamentsComponent,
+    QuestsComponent
   ],
   imports: [
     BrowserModule,

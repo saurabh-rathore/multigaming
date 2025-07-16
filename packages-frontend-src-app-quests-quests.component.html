@@ -1,0 +1,13 @@
+<div>
+  <h3>Daily Quests</h3>
+  <ul>
+    <li *ngFor="let quest of quests">
+      <h4>{{ quest.name }}</h4>
+      <p>{{ quest.description }}</p>
+      <p>Reward: {{ quest.reward_points }} points</p>
+      <button (click)="completeQuest(quest.id)" [disabled]="quest.completed">
+        {{ quest.completed ? 'Completed' : 'Complete' }}
+      </button>
+    </li>
+  </ul>
+</div>

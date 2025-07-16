@@ -1,0 +1,15 @@
+<div>
+  <h3>Guilds</h3>
+  <ul>
+    <li *ngFor="let guild of guilds">
+      {{ guild.name }} - {{ guild.description }}
+      <button (click)="joinGuild(guild.id)">Join</button>
+    </li>
+  </ul>
+  <div>
+    <h4>Create Guild</h4>
+    <input [(ngModel)]="newGuildName" placeholder="Guild Name">
+    <input [(ngModel)]="newGuildDescription" placeholder="Guild Description">
+    <button (click)="createGuild()">Create</button>
+  </div>
+</div>
