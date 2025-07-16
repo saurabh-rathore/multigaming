@@ -1,0 +1,8 @@
+<div *ngIf="user">
+  <h2>{{ user.username }}</h2>
+  <p>Points: {{ user.points }}</p>
+  <h3>Badges:</h3>
+  <ul>
+    <li *ngFor="let badge of user.badges">{{ badge.name }}</li>
+  </ul>
+</div>
