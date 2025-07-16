@@ -1,0 +1,13 @@
+<div>
+  <h3>Replays</h3>
+  <ul>
+    <li *ngFor="let replay of replays">
+      Game {{ replay.id }}
+      <button (click)="watchReplay(replay.id)">Watch</button>
+    </li>
+  </ul>
+  <div *ngIf="selectedReplay">
+    <h4>Replay of Game {{ selectedReplay.game_id }}</h4>
+    <pre>{{ selectedReplay.replay_data }}</pre>
+  </div>
+</div>

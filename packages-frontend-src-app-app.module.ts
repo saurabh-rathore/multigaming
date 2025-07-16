@@ -15,6 +15,9 @@ import { PrivateChatComponent } from './private-chat/private-chat.component';
 import { GuildsComponent } from './guilds/guilds.component';
 import { TournamentsComponent } from './tournaments/tournaments.component';
 import { QuestsComponent } from './quests/quests.component';
+import { MatchmakingComponent } from './matchmaking/matchmaking.component';
+import { LobbyComponent } from './lobby/lobby.component';
+import { ReplaysComponent } from './replays/replays.component';
 
 const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
 
@@ -30,7 +33,10 @@ const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
     PrivateChatComponent,
     GuildsComponent,
     TournamentsComponent,
-    QuestsComponent
+    QuestsComponent,
+    MatchmakingComponent,
+    LobbyComponent,
+    ReplaysComponent
   ],
   imports: [
     BrowserModule,

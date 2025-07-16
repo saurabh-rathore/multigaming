@@ -1,0 +1,13 @@
+<div>
+  <h3>Matchmaking</h3>
+  <button (click)="joinQueue()" [disabled]="inQueue">
+    {{ inQueue ? 'In Queue...' : 'Find Match' }}
+  </button>
+  <div *ngIf="matchFound">
+    <p>Match found! Your opponent is {{ opponent }}</p>
+  </div>
+  <div>
+    <input [(ngModel)]="gameToSpectate" placeholder="Game ID">
+    <button (click)="spectateGame()">Spectate Game</button>
+  </div>
+</div>

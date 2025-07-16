@@ -27,6 +27,7 @@ db.serialize(() => {
     db.run("CREATE TABLE IF NOT EXISTS tournament_participants (tournament_id INTEGER, user_id INTEGER, FOREIGN KEY(tournament_id) REFERENCES tournaments(id), FOREIGN KEY(user_id) REFERENCES users(id), PRIMARY KEY (tournament_id, user_id))");
     db.run("CREATE TABLE IF NOT EXISTS quests (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, description TEXT, reward_points INTEGER)");
     db.run("CREATE TABLE IF NOT EXISTS user_quests (user_id INTEGER, quest_id INTEGER, completed BOOLEAN, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(quest_id) REFERENCES quests(id), PRIMARY KEY (user_id, quest_id))");
+    db.run("CREATE TABLE IF NOT EXISTS replays (id INTEGER PRIMARY KEY AUTOINCREMENT, game_id INTEGER, replay_data TEXT, FOREIGN KEY(game_id) REFERENCES game_history(id))");
 });
 
 app.use(express.json());
@@ -216,13 +217,93 @@ app.post('/api/quests/:id/complete', (req, res) => {
     });
 });
 
+app.get('/api/replays/:id', (req, res) => {
+    const replayId = req.params.id;
+    db.get("SELECT * FROM replays WHERE id = ?", [replayId], (err, row) => {
+        if (err || !row) {
+            return res.status(404).json({ error: 'Replay not found' });
+        }
+        res.json(row);
+    });
+});
+
 
 let players = {};
-let currentPlayer = 'X';
-let boardState = ['', '', '', '', '', '', '', '', ''];
+let matchmakingQueue = [];
+let lobbies = {};
+let games = {};
 
 io.on('connection', (socket) => {
     console.log('A user connected');
+
+    socket.on('join-matchmaking', (userId) => {
+        matchmakingQueue.push({ userId, socketId: socket.id });
+        if (matchmakingQueue.length >= 2) {
+            const player1 = matchmakingQueue.shift();
+            const player2 = matchmakingQueue.shift();
+            const lobbyId = `lobby-${player1.userId}-${player2.userId}`;
+            const gameId = `game-${player1.userId}-${player2.userId}`;
+            lobbies[lobbyId] = { players: [player1, player2], gameId };
+            games[gameId] = {
+                players: {
+                    [player1.userId]: 'X',
+                    [player2.userId]: 'O'
+                },
+                currentPlayer: 'X',
+                boardState: ['', '', '', '', '', '', '', '', ''],
+                moves: []
+            };
+            io.to(player1.socketId).emit('match-found', { opponent: player2.userId, lobbyId, gameId });
+            io.to(player2.socketId).emit('match-found', { opponent: player1.userId, lobbyId, gameId });
+        }
+    });
+
+    socket.on('join-game', (gameId) => {
+        socket.join(gameId);
+        io.to(gameId).emit('board-state', games[gameId].boardState);
+    });
+
+    socket.on('spectate-game', (gameId) => {
+        socket.join(gameId);
+        io.to(gameId).emit('board-state', games[gameId].boardState);
+    });
+
+    socket.on('move', (data) => {
+        const { gameId, index } = data;
+        const game = games[gameId];
+        if (game && socket.id === Object.keys(game.players).find(key => game.players[key] === game.currentPlayer)) {
+            game.boardState[index] = game.currentPlayer;
+            game.moves.push({ player: game.currentPlayer, index });
+            io.to(gameId).emit('board-state', game.boardState);
+
+            if (checkWin(game.boardState, game.currentPlayer)) {
+                const winnerId = Object.keys(game.players).find(key => game.players[key] === game.currentPlayer);
+                const loserId = Object.keys(game.players).find(key => game.players[key] !== game.currentPlayer);
+                addXP(winnerId, 50);
+                addCurrency(winnerId, 10);
+                db.run("INSERT INTO game_history (game_name, winner_id, loser_id, is_draw) VALUES (?, ?, ?, ?)", ['Tic-Tac-Toe', winnerId, loserId, false], function(err) {
+                    if (!err) {
+                        db.run("INSERT INTO replays (game_id, replay_data) VALUES (?, ?)", [this.lastID, JSON.stringify(game.moves)]);
+                    }
+                });
+                io.to(gameId).emit('game-over', `${game.currentPlayer} wins!`);
+            } else if (game.boardState.every(cell => cell !== '')) {
+                const playersInGame = Object.values(game.players);
+                playersInGame.forEach(playerId => {
+                    addXP(playerId, 10);
+                    addCurrency(playerId, 1);
+                });
+                db.run("INSERT INTO game_history (game_name, is_draw) VALUES (?, ?)", ['Tic-Tac-Toe', true], function(err) {
+                    if (!err) {
+                        db.run("INSERT INTO replays (game_id, replay_data) VALUES (?, ?)", [this.lastID, JSON.stringify(game.moves)]);
+                    }
+                });
+                io.to(gameId).emit('game-over', 'Draw!');
+            } else {
+                game.currentPlayer = game.currentPlayer === 'X' ? 'O' : 'X';
+            }
+        }
+    });
 
     socket.on('message', (message) => {
         io.emit('message', message);
@@ -236,58 +317,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Assign player
-    if (!players.X) {
-        players.X = socket.id;
-        socket.emit('player-assignment', 'X');
-    } else if (!players.O) {
-        players.O = socket.id;
-        socket.emit('player-assignment', 'O');
-    } else {
-        socket.emit('spectator');
-    }
-
-    socket.emit('board-state', boardState);
-
-    socket.on('move', (data) => {
-        if (socket.id === players[currentPlayer]) {
-            boardState[data.index] = currentPlayer;
-            io.emit('board-state', boardState);
-
-            if (checkWin(currentPlayer)) {
-                const winnerId = Object.keys(players).find(key => players[key] === socket.id);
-                const loserId = Object.keys(players).find(key => players[key] !== socket.id);
-                addXP(winnerId, 50);
-                addCurrency(winnerId, 10);
-                db.run("INSERT INTO game_history (game_name, winner_id, loser_id, is_draw) VALUES (?, ?, ?, ?)", ['Tic-Tac-Toe', winnerId, loserId, false]);
-                io.emit('game-over', `${currentPlayer} wins!`);
-                resetGame();
-            } else if (boardState.every(cell => cell !== '')) {
-                const playersInGame = Object.values(players);
-                playersInGame.forEach(playerId => {
-                    addXP(playerId, 10);
-                    addCurrency(playerId, 1);
-                });
-                db.run("INSERT INTO game_history (game_name, is_draw) VALUES (?, ?)", ['Tic-Tac-Toe', true]);
-                io.emit('game-over', 'Draw!');
-                resetGame();
-            } else {
-                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-            }
-        }
-    });
-
     socket.on('disconnect', () => {
         console.log('A user disconnected');
-        const player = Object.keys(players).find(key => players[key] === socket.id);
-        if (player) {
-            delete players[player];
-            resetGame();
-        }
+        matchmakingQueue = matchmakingQueue.filter(player => player.socketId !== socket.id);
     });
 });
 
-function checkWin(player) {
+function checkWin(boardState, player) {
     const winningConditions = [
         [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
         [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
@@ -296,12 +332,6 @@ function checkWin(player) {
     return winningConditions.some(condition => {
         return condition.every(index => boardState[index] === player);
     });
-}
-
-function resetGame() {
-    boardState = ['', '', '', '', '', '', '', '', ''];
-    currentPlayer = 'X';
-    io.emit('board-state', boardState);
 }
 
 function checkAchievements(userId) {
