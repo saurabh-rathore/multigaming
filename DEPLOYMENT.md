@@ -76,6 +76,7 @@ When you're ready to deploy the project to a live server, you'll need to build t
 
 2.  **Deploy the backend:** You can deploy the backend to any hosting provider that supports Node.js. Some popular options include **Heroku**, **AWS Elastic Beanstalk**, and **DigitalOcean**. You'll need to follow the instructions provided by your hosting provider to deploy the backend.
 3.  **Deploy the frontend:** You can deploy the frontend to any hosting provider that supports static websites. Some popular options include **Netlify**, **Vercel**, and **GitHub Pages**. You'll need to follow the instructions provided by your hosting provider to deploy the frontend.
+4.  **Run the backend in production:** To run the backend in a production environment, you can use the `scripts/start-prod.sh` script. This script sets the `NODE_ENV` environment variable to `production`, which will enable various performance and security optimizations in Express.
 
 ### 5. What's Next?
 
