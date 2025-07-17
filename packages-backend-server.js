@@ -360,6 +360,10 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('voice-signal', (data) => {
+        io.to(data.to).emit('voice-signal', { from: socket.id, signal: data.signal });
+    });
+
     socket.on('disconnect', () => {
         console.log('A user disconnected');
         matchmakingQueue = matchmakingQueue.filter(player => player.socketId !== socket.id);

@@ -25,6 +25,7 @@ import { PongComponent } from './pong/pong.component';
 import { CheckersComponent } from './checkers/checkers.component';
 import { BattleshipComponent } from './battleship/battleship.component';
 import { ShopComponent } from './shop/shop.component';
+import { VoiceChatComponent } from './voice-chat/voice-chat.component';
 
 const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
 
@@ -50,7 +51,8 @@ const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
     PongComponent,
     CheckersComponent,
     BattleshipComponent,
-    ShopComponent
+    ShopComponent,
+    VoiceChatComponent
   ],
   imports: [
     BrowserModule,
