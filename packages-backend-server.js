@@ -41,6 +41,9 @@ const createTables = `
     CREATE TABLE IF NOT EXISTS user_quests (user_id INT, quest_id INT, completed BOOLEAN, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(quest_id) REFERENCES quests(id), PRIMARY KEY (user_id, quest_id));
     CREATE TABLE IF NOT EXISTS replays (id INT AUTO_INCREMENT PRIMARY KEY, game_id INT, replay_data TEXT, FOREIGN KEY(game_id) REFERENCES game_history(id));
     CREATE TABLE IF NOT EXISTS items (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, description VARCHAR(255), price INT);
+    INSERT IGNORE INTO items (name, description, price) VALUES ('Gold Sword', 'A shiny gold sword.', 100);
+    INSERT IGNORE INTO items (name, description, price) VALUES ('Silver Shield', 'A sturdy silver shield.', 75);
+    INSERT IGNORE INTO items (name, description, price) VALUES ('Bronze Helmet', 'A basic bronze helmet.', 50);
     CREATE TABLE IF NOT EXISTS user_items (user_id INT, item_id INT, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(item_id) REFERENCES items(id), PRIMARY KEY (user_id, item_id));
 `;
 
@@ -49,7 +52,9 @@ db.query(createTables, (err, result) => {
     console.log('Tables created or already exist.');
 });
 
-// ... (rest of the file)
+app.use(express.json());
+app.use(express.static('../frontend/dist/frontend'));
+
 app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -290,6 +295,126 @@ app.post('/api/premium/purchase', (req, res) => {
     });
 });
 
+let players = {};
+let matchmakingQueue = {};
+let lobbies = {};
+let games = {};
+
+io.on('connection', (socket) => {
+    console.log('A user connected');
+
+    socket.on('join-matchmaking', (data) => {
+        const { userId, level } = data;
+        if (!matchmakingQueue[level]) {
+            matchmakingQueue[level] = [];
+        }
+        matchmakingQueue[level].push({ userId, socketId: socket.id });
+        if (matchmakingQueue[level].length >= 2) {
+            const player1 = matchmakingQueue[level].shift();
+            const player2 = matchmakingQueue[level].shift();
+            const lobbyId = `lobby-${player1.userId}-${player2.userId}`;
+            const gameId = `game-${player1.userId}-${player2.userId}`;
+            lobbies[lobbyId] = { players: [player1, player2], gameId };
+            games[gameId] = {
+                players: {
+                    [player1.userId]: 'X',
+                    [player2.userId]: 'O'
+                },
+                currentPlayer: 'X',
+                boardState: ['', '', '', '', '', '', '', '', ''],
+                moves: []
+            };
+            io.to(player1.socketId).emit('match-found', { opponent: player2.userId, lobbyId, gameId });
+            io.to(player2.socketId).emit('match-found', { opponent: player1.userId, lobbyId, gameId });
+        }
+    });
+
+    socket.on('join-game', (gameId) => {
+        socket.join(gameId);
+        if (games[gameId]) {
+            io.to(gameId).emit('board-state', games[gameId].boardState);
+        }
+    });
+
+    socket.on('spectate-game', (gameId) => {
+        socket.join(gameId);
+        if (games[gameId]) {
+            io.to(gameId).emit('board-state', games[gameId].boardState);
+        }
+    });
+
+    socket.on('move', (data) => {
+        const { gameId, index } = data;
+        const game = games[gameId];
+        if (game && game.players[socket.id] === game.currentPlayer) {
+            game.boardState[index] = game.currentPlayer;
+            game.moves.push({ player: game.currentPlayer, index });
+            io.to(gameId).emit('board-state', game.boardState);
+
+            if (checkWin(game.boardState, game.currentPlayer)) {
+                const winnerId = Object.keys(game.players).find(key => game.players[key] === game.currentPlayer);
+                const loserId = Object.keys(game.players).find(key => game.players[key] !== game.currentPlayer);
+                addXP(winnerId, 50);
+                addCurrency(winnerId, 10);
+                db.query("INSERT INTO game_history SET ?", { game_name: 'Tic-Tac-Toe', winner_id: winnerId, loser_id: loserId, is_draw: false }, function(err, result) {
+                    if (!err) {
+                        db.query("INSERT INTO replays SET ?", { game_id: result.insertId, replay_data: JSON.stringify(game.moves) });
+                    }
+                });
+                io.to(gameId).emit('game-over', `${game.currentPlayer} wins!`);
+            } else if (game.boardState.every(cell => cell !== '')) {
+                const playersInGame = Object.values(game.players);
+                playersInGame.forEach(playerId => {
+                    addXP(playerId, 10);
+                    addCurrency(playerId, 1);
+                });
+                db.query("INSERT INTO game_history SET ?", { game_name: 'Tic-Tac-Toe', is_draw: true }, function(err, result) {
+                    if (!err) {
+                        db.query("INSERT INTO replays SET ?", { game_id: result.insertId, replay_data: JSON.stringify(game.moves) });
+                    }
+                });
+                io.to(gameId).emit('game-over', 'Draw!');
+            } else {
+                game.currentPlayer = game.currentPlayer === 'X' ? 'O' : 'X';
+            }
+        }
+    });
+
+    socket.on('message', (message) => {
+        io.emit('message', message);
+    });
+
+    socket.on('private-message', (data) => {
+        const { receiverId, message } = data;
+        const receiverSocketId = Object.keys(players).find(key => players[key] === receiverId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit('private-message', message);
+        }
+    });
+
+    socket.on('voice-signal', (data) => {
+        io.to(data.to).emit('voice-signal', { from: socket.id, signal: data.signal });
+    });
+
+    socket.on('disconnect', () => {
+        console.log('A user disconnected');
+        for (const level in matchmakingQueue) {
+            matchmakingQueue[level] = matchmakingQueue[level].filter(player => player.socketId !== socket.id);
+        }
+    });
+});
+
+function checkWin(boardState, player) {
+    const winningConditions = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+        [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+        [0, 4, 8], [2, 4, 6]             // Diagonals
+    ];
+    return winningConditions.some(condition => {
+        return condition.every(index => boardState[index] === player);
+    });
+}
+
 function checkAchievements(userId) {
     db.query("SELECT COUNT(*) as wins FROM game_history WHERE winner_id = ?", [userId], (err, results) => {
         if (results[0].wins === 1) {
@@ -324,3 +449,9 @@ function addXP(userId, amount) {
 function addCurrency(userId, amount) {
     db.query("UPDATE users SET currency = currency + ? WHERE id = ?", [amount, userId]);
 }
+
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});

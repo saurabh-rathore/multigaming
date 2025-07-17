@@ -1,24 +1,31 @@
-<div *ngIf="user">
-  <h2>{{ user.username }}</h2>
-  <p>Level: {{ user.level }}</p>
-  <p>XP: {{ user.xp }} / {{ user.level * 100 }}</p>
-  <p>Points: {{ user.points }}</p>
-  <p>Currency: {{ user.currency }}</p>
-  <p>Premium: {{ user.is_premium ? 'Yes' : 'No' }}</p>
-  <button *ngIf="!user.is_premium" (click)="purchasePremium()">Upgrade to Premium</button>
-  <h3>Badges:</h3>
-  <ul>
-    <li *ngFor="let badge of user.badges">
-      <strong>{{ badge.name }}:</strong> {{ badge.description }}
-    </li>
-  </ul>
-  <h3>Game History:</h3>
-  <ul>
-    <li *ngFor="let game of user.gameHistory">
-      {{ game.game_name }} -
-      <span *ngIf="game.is_draw">Draw</span>
-      <span *ngIf="!game.is_draw && game.winner_id === user.id">Win</span>
-      <span *ngIf="!game.is_draw && game.loser_id === user.id">Loss</span>
-    </li>
-  </ul>
-</div>
+<mat-card *ngIf="user">
+  <mat-card-header>
+    <mat-card-title>{{ user.username }}</mat-card-title>
+    <mat-card-subtitle>Level {{ user.level }}</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <p>XP: {{ user.xp }} / {{ user.level * 100 }}</p>
+    <p>Points: {{ user.points }}</p>
+    <p>Currency: {{ user.currency }}</p>
+    <p>Premium: {{ user.is_premium ? 'Yes' : 'No' }}</p>
+    <button mat-raised-button color="primary" *ngIf="!user.is_premium" (click)="purchasePremium()">Upgrade to Premium</button>
+    <h3>Badges:</h3>
+    <mat-list>
+      <mat-list-item *ngFor="let badge of user.badges">
+        <h4 mat-line>{{ badge.name }}</h4>
+        <p mat-line>{{ badge.description }}</p>
+      </mat-list-item>
+    </mat-list>
+    <h3>Game History:</h3>
+    <mat-list>
+      <mat-list-item *ngFor="let game of user.gameHistory">
+        <h4 mat-line>{{ game.game_name }}</h4>
+        <p mat-line>
+          <span *ngIf="game.is_draw">Draw</span>
+          <span *ngIf="!game.is_draw && game.winner_id === user.id">Win</span>
+          <span *ngIf="!game.is_draw && game.loser_id === user.id">Loss</span>
+        </p>
+      </mat-list-item>
+    </mat-list>
+  </mat-card-content>
+</mat-card>

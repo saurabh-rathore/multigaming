@@ -1,20 +1,102 @@
+<mat-toolbar color="primary">
+  <span>Gaming Platform</span>
+</mat-toolbar>
+
 <div class="container">
   <div class="main-content">
     <app-matchmaking></app-matchmaking>
     <app-lobby></app-lobby>
-    <app-battleship></app-battleship>
+    <app-clicker></app-clicker>
     <app-replays></app-replays>
   </div>
   <div class="sidebar">
-    <app-auth></app-auth>
-    <app-profile></app-profile>
-    <app-leaderboard></app-leaderboard>
-    <app-friends-list></app-friends-list>
-    <app-guilds></app-guilds>
-    <app-tournaments></app-tournaments>
-    <app-quests></app-quests>
-    <app-shop></app-shop>
-    <app-chat></app-chat>
-    <app-voice-chat></app-voice-chat>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Authentication</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-auth></app-auth>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Profile</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-profile></app-profile>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Leaderboard</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-leaderboard></app-leaderboard>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Friends</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-friends-list></app-friends-list>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Guilds</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-guilds></app-guilds>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Tournaments</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-tournaments></app-tournaments>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Quests</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-quests></app-quests>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Shop</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-shop></app-shop>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Global Chat</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-global-chat></app-global-chat>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Chat</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-chat></app-chat>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Voice Chat</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <app-voice-chat></app-voice-chat>
+      </mat-card-content>
+    </mat-card>
   </div>
 </div>

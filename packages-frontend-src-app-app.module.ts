@@ -3,6 +3,12 @@ import { NgModule } from '@angular/core';
 import { HttpClientModule } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { SocketIoModule, SocketIoConfig } from 'ngx-socket-io';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatInputModule } from '@angular/material/input';
+import { MatListModule } from '@angular/material/list';
+import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { AppComponent } from './app.component';
 import { AuthComponent } from './auth/auth.component';
@@ -26,6 +32,9 @@ import { CheckersComponent } from './checkers/checkers.component';
 import { BattleshipComponent } from './battleship/battleship.component';
 import { ShopComponent } from './shop/shop.component';
 import { VoiceChatComponent } from './voice-chat/voice-chat.component';
+import { GoComponent } from './go/go.component';
+import { ClickerComponent } from './clicker/clicker.component';
+import { GlobalChatComponent } from './global-chat/global-chat.component';
 
 const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
 
@@ -52,13 +61,22 @@ const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
     CheckersComponent,
     BattleshipComponent,
     ShopComponent,
-    VoiceChatComponent
+    VoiceChatComponent,
+    GoComponent,
+    ClickerComponent,
+    GlobalChatComponent
   ],
   imports: [
     BrowserModule,
     HttpClientModule,
     FormsModule,
-    SocketIoModule.forRoot(config)
+    SocketIoModule.forRoot(config),
+    BrowserAnimationsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatInputModule,
+    MatListModule,
+    MatToolbarModule
   ],
   providers: [],
   bootstrap: [AppComponent]

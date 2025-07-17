@@ -1,0 +1,9 @@
+<div>
+  <h3>Global Chat</h3>
+  <ul id="messages">
+    <li *ngFor="let msg of messages">{{ msg }}</li>
+  </ul>
+  <form (ngSubmit)="sendMessage()">
+    <input [(ngModel)]="message" name="message" autocomplete="off" /><button>Send</button>
+  </form>
+</div>
