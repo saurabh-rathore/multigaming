@@ -23,62 +23,53 @@ Before you can start working on the project, you'll need to set up your developm
     ```
 
 *   **A code editor:** You'll need a code editor to work with the project's code. I recommend using **Visual Studio Code**, which is a free and popular code editor that has great support for Angular and Node.js. You can download it from the official Visual Studio Code website: [https://code.visualstudio.com/](https://code.visualstudio.com/)
-*   **MySQL:** You'll need to have MySQL installed on your machine to run the database. You can download it from the official MySQL website: [https://www.mysql.com/](https://www.mysql.com/)
+*   **Docker:** You'll need to have Docker installed on your machine to run the application in a containerized environment. You can download it from the official Docker website: [https://www.docker.com/](https://www.docker.com/)
 
 ### 3. Building and Running the Project
 
 Once you have your development environment set up, you can build and run the project. Here's how:
 
 1.  **Set up the database:**
-    *   Open the MySQL command-line client and run the following command to create a new database:
-        ```
-        CREATE DATABASE gaming_platform;
-        ```
-    *   In the `packages/backend/server.js` file, update the `db` connection details with your MySQL username and password.
+    *   In the `docker-compose.yml` file, update the `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD` environment variables with a secure password.
+    *   In the `packages/backend/server.js` file, update the `db` connection details with the same password.
 
-2.  **Install the dependencies:** Open your terminal and navigate to the root of the project. Then, run the following command to install the dependencies for both the frontend and the backend:
+2.  **Build and run the application:** Open your terminal and navigate to the root of the project. Then, run the following command to build and run the application with Docker Compose:
 
     ```
-    npm install
+    docker-compose up --build
     ```
 
-    This command will install all the dependencies listed in the `package.json` files in the root of the project and in the `packages/frontend` and `packages/backend` directories.
+    This will build the frontend and backend images, and then start the containers for the frontend, backend, and database.
 
-3.  **Run the backend server:** In your terminal, navigate to the `packages/backend` directory and run the following command to start the backend server:
-
-    ```
-    npm start
-    ```
-
-    This will start the backend server on port 3000. You should see a message in your terminal that says "Server is running on port 3000".
-
-4.  **Run the frontend application:** In a new terminal window, navigate to the `packages/frontend` directory and run the following command to start the frontend application:
-
-    ```
-    npm start
-    ```
-
-    This will start the frontend application on port 4200. You should see a message in your terminal that says "Angular Live Development Server is listening on localhost:4200".
-
-5.  **Open the application in your browser:** Open your web browser and navigate to `http://localhost:4200`. You should see the gaming platform application running in your browser.
+3.  **Open the application in your browser:** Open your web browser and navigate to `http://localhost`. You should see the gaming platform application running in your browser.
 
 ### 4. Deploying the Project
 
-When you're ready to deploy the project to a live server, you'll need to build the frontend application for production and then deploy both the frontend and the backend to a hosting provider.
+When you're ready to deploy the project to a live server, you'll need to follow these steps:
 
-1.  **Build the frontend application:** In your terminal, navigate to the `packages/frontend` directory and run the following command to build the frontend application for production:
+1.  **Set up a production server:** You'll need to set up a production server with Docker and Docker Compose installed.
+2.  **Copy the project files:** Copy the project files to your production server.
+3.  **Build and run the application:** In your terminal, navigate to the root of the project and run the following command to build and run the application with Docker Compose:
 
     ```
-    npm run build --prod
+    docker-compose up -d --build
     ```
 
-    This will create a `dist` directory in the `packages/frontend` directory that contains the production-ready build of the frontend application.
+    This will build the frontend and backend images, and then start the containers in detached mode.
 
-2.  **Deploy the backend:** You can deploy the backend to any hosting provider that supports Node.js. Some popular options include **Heroku**, **AWS Elastic Beanstalk**, and **DigitalOcean**. You'll need to follow the instructions provided by your hosting provider to deploy the backend.
-3.  **Deploy the frontend:** You can deploy the frontend to any hosting provider that supports static websites. Some popular options include **Netlify**, **Vercel**, and **GitHub Pages**. You'll need to follow the instructions provided by your hosting provider to deploy the frontend.
-4.  **Run the backend in production:** To run the backend in a production environment, you can use the `scripts/start-prod.sh` script. This script sets the `NODE_ENV` environment variable to `production`, which will enable various performance and security optimizations in Express.
+4.  **Configure Nginx:**
+    *   Copy the `nginx.conf` file to your Nginx configuration directory (e.g., `/etc/nginx/conf.d/`).
+    *   Replace `your_domain.com` with your actual domain name.
+    *   Reload the Nginx configuration:
+        ```
+        sudo nginx -s reload
+        ```
 
-### 5. What's Next?
+### 5. CI/CD Pipeline
+
+This project includes a basic CI/CD pipeline using GitHub Actions. The pipeline is defined in the `.github/workflows/ci.yml` file. This pipeline will automatically build and test the application on every push to the `main` branch.
+
+### 6. What's Next?
 
 This project is a great starting point for building a full-fledged gaming platform. Here are some ideas for how you can extend the project:
 
