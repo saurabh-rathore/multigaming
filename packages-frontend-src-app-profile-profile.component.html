@@ -4,6 +4,8 @@
   <p>XP: {{ user.xp }} / {{ user.level * 100 }}</p>
   <p>Points: {{ user.points }}</p>
   <p>Currency: {{ user.currency }}</p>
+  <p>Premium: {{ user.is_premium ? 'Yes' : 'No' }}</p>
+  <button *ngIf="!user.is_premium" (click)="purchasePremium()">Upgrade to Premium</button>
   <h3>Badges:</h3>
   <ul>
     <li *ngFor="let badge of user.badges">

@@ -1,0 +1,11 @@
+<div>
+  <h3>Shop</h3>
+  <ul>
+    <li *ngFor="let item of items">
+      <h4>{{ item.name }}</h4>
+      <p>{{ item.description }}</p>
+      <p>Price: {{ item.price }}</p>
+      <button (click)="purchaseItem(item.id)">Purchase</button>
+    </li>
+  </ul>
+</div>

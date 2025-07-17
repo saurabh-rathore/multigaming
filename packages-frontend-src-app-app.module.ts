@@ -24,6 +24,7 @@ import { SnakeComponent } from './snake/snake.component';
 import { PongComponent } from './pong/pong.component';
 import { CheckersComponent } from './checkers/checkers.component';
 import { BattleshipComponent } from './battleship/battleship.component';
+import { ShopComponent } from './shop/shop.component';
 
 const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
 
@@ -48,7 +49,8 @@ const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
     SnakeComponent,
     PongComponent,
     CheckersComponent,
-    BattleshipComponent
+    BattleshipComponent,
+    ShopComponent
   ],
   imports: [
     BrowserModule,

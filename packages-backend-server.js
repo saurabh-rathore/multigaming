@@ -12,7 +12,7 @@ const io = socketIo(server);
 const db = new sqlite3.Database('platform.db');
 
 db.serialize(() => {
-    db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, points INTEGER DEFAULT 0, level INTEGER DEFAULT 1, xp INTEGER DEFAULT 0, currency INTEGER DEFAULT 0)");
+    db.run("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, points INTEGER DEFAULT 0, level INTEGER DEFAULT 1, xp INTEGER DEFAULT 0, currency INTEGER DEFAULT 0, is_premium BOOLEAN DEFAULT 0)");
     db.run("CREATE TABLE IF NOT EXISTS badges (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, description TEXT)");
     db.run("INSERT OR IGNORE INTO badges (name, description) VALUES ('First Win', 'Win your first game')");
     db.run("INSERT OR IGNORE INTO badges (name, description) VALUES ('10 Wins', 'Win 10 games')");
@@ -28,6 +28,8 @@ db.serialize(() => {
     db.run("CREATE TABLE IF NOT EXISTS quests (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, description TEXT, reward_points INTEGER)");
     db.run("CREATE TABLE IF NOT EXISTS user_quests (user_id INTEGER, quest_id INTEGER, completed BOOLEAN, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(quest_id) REFERENCES quests(id), PRIMARY KEY (user_id, quest_id))");
     db.run("CREATE TABLE IF NOT EXISTS replays (id INTEGER PRIMARY KEY AUTOINCREMENT, game_id INTEGER, replay_data TEXT, FOREIGN KEY(game_id) REFERENCES game_history(id))");
+    db.run("CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, description TEXT, price INTEGER)");
+    db.run("CREATE TABLE IF NOT EXISTS user_items (user_id INTEGER, item_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(item_id) REFERENCES items(id), PRIMARY KEY (user_id, item_id))");
 });
 
 app.use(express.json());
@@ -61,7 +63,7 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/profile/:id', (req, res) => {
     const userId = req.params.id;
-    db.get("SELECT id, username, points, level, xp, currency FROM users WHERE id = ?", [userId], (err, user) => {
+    db.get("SELECT id, username, points, level, xp, currency, is_premium FROM users WHERE id = ?", [userId], (err, user) => {
         if (err || !user) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -224,6 +226,47 @@ app.get('/api/replays/:id', (req, res) => {
             return res.status(404).json({ error: 'Replay not found' });
         }
         res.json(row);
+    });
+});
+
+app.get('/api/items', (req, res) => {
+    db.all("SELECT * FROM items", (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error fetching items' });
+        }
+        res.json(rows);
+    });
+});
+
+app.post('/api/items/:id/purchase', (req, res) => {
+    const itemId = req.params.id;
+    const { userId } = req.body;
+    db.get("SELECT price FROM items WHERE id = ?", [itemId], (err, item) => {
+        if (err || !item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+        db.get("SELECT currency FROM users WHERE id = ?", [userId], (err, user) => {
+            if (err || !user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+            if (user.currency >= item.price) {
+                db.run("UPDATE users SET currency = currency - ? WHERE id = ?", [item.price, userId]);
+                db.run("INSERT INTO user_items (user_id, item_id) VALUES (?, ?)", [userId, itemId]);
+                res.json({ message: 'Purchase successful' });
+            } else {
+                res.status(400).json({ error: 'Insufficient currency' });
+            }
+        });
+    });
+});
+
+app.post('/api/premium/purchase', (req, res) => {
+    const { userId } = req.body;
+    db.run("UPDATE users SET is_premium = 1 WHERE id = ?", [userId], (err) => {
+        if (err) {
+            return res.status(400).json({ error: 'Could not purchase premium' });
+        }
+        res.json({ message: 'Premium purchased successfully' });
     });
 });
 

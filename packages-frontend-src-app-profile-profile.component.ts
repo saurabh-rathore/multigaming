@@ -18,4 +18,12 @@ export class ProfileComponent implements OnInit {
         .subscribe(user => this.user = user);
     }
   }
+
+  purchasePremium() {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      this.http.post('/api/premium/purchase', { userId })
+        .subscribe(() => this.ngOnInit());
+    }
+  }
 }
