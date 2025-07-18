@@ -4,6 +4,7 @@ const socketIo = require('socket.io');
 const fs = require('fs');
 const mysql = require('mysql');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,7 +25,7 @@ db.connect((err) => {
 });
 
 const createTables = `
-    CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password VARCHAR(255), points INT DEFAULT 0, level INT DEFAULT 1, xp INT DEFAULT 0, currency INT DEFAULT 0, is_premium BOOLEAN DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255) UNIQUE, password VARCHAR(255), points INT DEFAULT 0, level INT DEFAULT 1, xp INT DEFAULT 0, currency INT DEFAULT 0, is_premium BOOLEAN DEFAULT 0, referral_code VARCHAR(255) UNIQUE);
     CREATE TABLE IF NOT EXISTS badges (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, description VARCHAR(255));
     INSERT IGNORE INTO badges (name, description) VALUES ('First Win', 'Win your first game');
     INSERT IGNORE INTO badges (name, description) VALUES ('10 Wins', 'Win 10 games');
@@ -45,6 +46,13 @@ const createTables = `
     INSERT IGNORE INTO items (name, description, price) VALUES ('Silver Shield', 'A sturdy silver shield.', 75);
     INSERT IGNORE INTO items (name, description, price) VALUES ('Bronze Helmet', 'A basic bronze helmet.', 50);
     CREATE TABLE IF NOT EXISTS user_items (user_id INT, item_id INT, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(item_id) REFERENCES items(id), PRIMARY KEY (user_id, item_id));
+    CREATE TABLE IF NOT EXISTS bonuses (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, description VARCHAR(255), reward_currency INT);
+    INSERT IGNORE INTO bonuses (name, description, reward_currency) VALUES ('Daily Login', 'Log in each day to receive a bonus.', 10);
+    CREATE TABLE IF NOT EXISTS referrals (id INT AUTO_INCREMENT PRIMARY KEY, referrer_id INT, referred_id INT, FOREIGN KEY(referrer_id) REFERENCES users(id), FOREIGN KEY(referred_id) REFERENCES users(id));
+    CREATE TABLE IF NOT EXISTS fantasy_leagues (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, sport VARCHAR(255));
+    CREATE TABLE IF NOT EXISTS fantasy_teams (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, league_id INT, name VARCHAR(255), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(league_id) REFERENCES fantasy_leagues(id));
+    CREATE TABLE IF NOT EXISTS fantasy_players (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), sport VARCHAR(255), team VARCHAR(255));
+    CREATE TABLE IF NOT EXISTS user_behavior (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, game_name VARCHAR(255), action VARCHAR(255), FOREIGN KEY(user_id) REFERENCES users(id));
 `;
 
 db.query(createTables, (err, result) => {
@@ -58,7 +66,8 @@ app.use(express.static('../frontend/dist/frontend'));
 app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
-    db.query("INSERT INTO users SET ?", { username, password: hashedPassword }, (err, result) => {
+    const referralCode = crypto.randomBytes(8).toString('hex');
+    db.query("INSERT INTO users SET ?", { username, password: hashedPassword, referral_code: referralCode }, (err, result) => {
         if (err) {
             return res.status(400).json({ error: 'Username already exists' });
         }
@@ -84,7 +93,7 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/profile/:id', (req, res) => {
     const userId = req.params.id;
-    db.query("SELECT id, username, points, level, xp, currency, is_premium FROM users WHERE id = ?", [userId], (err, results) => {
+    db.query("SELECT id, username, points, level, xp, currency, is_premium, referral_code FROM users WHERE id = ?", [userId], (err, results) => {
         if (err || results.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -295,6 +304,78 @@ app.post('/api/premium/purchase', (req, res) => {
     });
 });
 
+app.get('/api/bonuses', (req, res) => {
+    db.query("SELECT * FROM bonuses", (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error fetching bonuses' });
+        }
+        res.json(results);
+    });
+});
+
+app.post('/api/bonuses/:id/claim', (req, res) => {
+    const bonusId = req.params.id;
+    const { userId } = req.body;
+    db.query("SELECT reward_currency FROM bonuses WHERE id = ?", [bonusId], (err, results) => {
+        if (err || results.length === 0) {
+            return res.status(404).json({ error: 'Bonus not found' });
+        }
+        const bonus = results[0];
+        db.query("UPDATE users SET currency = currency + ? WHERE id = ?", [bonus.reward_currency, userId], (err, result) => {
+            if (err) {
+                return res.status(400).json({ error: 'Could not claim bonus' });
+            }
+            res.json({ message: 'Bonus claimed successfully' });
+        });
+    });
+});
+
+app.post('/api/referral-code/redeem', (req, res) => {
+    const { userId, referralCode } = req.body;
+    db.query("SELECT id FROM users WHERE referral_code = ?", [referralCode], (err, results) => {
+        if (err || results.length === 0) {
+            return res.status(400).json({ error: 'Invalid referral code' });
+        }
+        const referrerId = results[0].id;
+        db.query("INSERT INTO referrals SET ?", { referrer_id: referrerId, referred_id: userId }, (err, result) => {
+            if (err) {
+                return res.status(400).json({ error: 'Could not redeem referral code' });
+            }
+            addCurrency(referrerId, 50);
+            res.json({ message: 'Referral code redeemed successfully' });
+        });
+    });
+});
+
+app.get('/api/fantasy-leagues', (req, res) => {
+    db.query("SELECT * FROM fantasy_leagues", (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error fetching fantasy leagues' });
+        }
+        res.json(results);
+    });
+});
+
+app.post('/api/fantasy-leagues', (req, res) => {
+    const { name, sport } = req.body;
+    db.query("INSERT INTO fantasy_leagues SET ?", { name, sport }, (err, result) => {
+        if (err) {
+            return res.status(400).json({ error: 'League name already exists' });
+        }
+        res.json({ id: result.insertId });
+    });
+});
+
+app.post('/api/fantasy-teams', (req, res) => {
+    const { userId, leagueId, name } = req.body;
+    db.query("INSERT INTO fantasy_teams SET ?", { user_id: userId, league_id: leagueId, name }, (err, result) => {
+        if (err) {
+            return res.status(400).json({ error: 'Could not create fantasy team' });
+        }
+        res.json({ id: result.insertId });
+    });
+});
+
 let players = {};
 let matchmakingQueue = {};
 let lobbies = {};
@@ -425,7 +506,7 @@ function checkAchievements(userId) {
         }
     });
     db.query("SELECT points FROM users WHERE id = ?", [userId], (err, results) => {
-        if (results[0].points >= 100) {
+        if (results.length > 0 && results[0].points >= 100) {
             db.query("INSERT IGNORE INTO user_badges SET ?", { user_id: userId, badge_id: 3 });
         }
     });

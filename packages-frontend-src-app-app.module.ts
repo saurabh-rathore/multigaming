@@ -35,6 +35,11 @@ import { VoiceChatComponent } from './voice-chat/voice-chat.component';
 import { GoComponent } from './go/go.component';
 import { ClickerComponent } from './clicker/clicker.component';
 import { GlobalChatComponent } from './global-chat/global-chat.component';
+import { BonusesComponent } from './bonuses/bonuses.component';
+import { FantasyLeaguesComponent } from './fantasy-leagues/fantasy-leagues.component';
+import { RummyComponent } from './rummy/rummy.component';
+import { PokerComponent } from './poker/poker.component';
+import { RecommendationsComponent } from './recommendations/recommendations.component';
 
 const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
 
@@ -64,7 +69,12 @@ const config: SocketIoConfig = { url: 'http://localhost:3000', options: {} };
     VoiceChatComponent,
     GoComponent,
     ClickerComponent,
-    GlobalChatComponent
+    GlobalChatComponent,
+    BonusesComponent,
+    FantasyLeaguesComponent,
+    RummyComponent,
+    PokerComponent,
+    RecommendationsComponent
   ],
   imports: [
     BrowserModule,

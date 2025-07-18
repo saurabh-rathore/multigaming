@@ -8,7 +8,14 @@
     <p>Points: {{ user.points }}</p>
     <p>Currency: {{ user.currency }}</p>
     <p>Premium: {{ user.is_premium ? 'Yes' : 'No' }}</p>
+    <p>Referral Code: {{ user.referral_code }}</p>
     <button mat-raised-button color="primary" *ngIf="!user.is_premium" (click)="purchasePremium()">Upgrade to Premium</button>
+    <div>
+      <mat-form-field>
+        <input matInput [(ngModel)]="referralCodeToRedeem" placeholder="Redeem Referral Code">
+      </mat-form-field>
+      <button mat-raised-button color="primary" (click)="redeemReferralCode()">Redeem</button>
+    </div>
     <h3>Badges:</h3>
     <mat-list>
       <mat-list-item *ngFor="let badge of user.badges">

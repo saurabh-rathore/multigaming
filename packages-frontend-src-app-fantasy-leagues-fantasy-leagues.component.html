@@ -1,0 +1,14 @@
+<div>
+  <h3>Fantasy Leagues</h3>
+  <ul>
+    <li *ngFor="let league of leagues">
+      {{ league.name }} ({{ league.sport }})
+    </li>
+  </ul>
+  <div>
+    <h4>Create League</h4>
+    <input [(ngModel)]="newLeagueName" placeholder="League Name">
+    <input [(ngModel)]="newLeagueSport" placeholder="Sport">
+    <button (click)="createLeague()">Create</button>
+  </div>
+</div>

@@ -8,6 +8,7 @@ import { HttpClient } from '@angular/common/http';
 })
 export class ProfileComponent implements OnInit {
   user: any;
+  referralCodeToRedeem = '';
 
   constructor(private http: HttpClient) { }
 
@@ -24,6 +25,17 @@ export class ProfileComponent implements OnInit {
     if (userId) {
       this.http.post('/api/premium/purchase', { userId })
         .subscribe(() => this.ngOnInit());
+    }
+  }
+
+  redeemReferralCode() {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      this.http.post('/api/referral-code/redeem', { userId, referralCode: this.referralCodeToRedeem })
+        .subscribe(() => {
+          this.referralCodeToRedeem = '';
+          this.ngOnInit();
+        });
     }
   }
 }

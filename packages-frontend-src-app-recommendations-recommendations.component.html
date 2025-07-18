@@ -1,0 +1,16 @@
+<div>
+  <h3>Recommended for You</h3>
+  <div *ngIf="!recommendations">
+    <p>No recommendations available at this time.</p>
+  </div>
+  <div *ngIf="recommendations">
+    <h4>Games</h4>
+    <ul>
+      <li *ngFor="let game of recommendations.games">{{ game.name }}</li>
+    </ul>
+    <h4>Players</h4>
+    <ul>
+      <li *ngFor="let player of recommendations.players">{{ player.username }}</li>
+    </ul>
+  </div>
+</div>

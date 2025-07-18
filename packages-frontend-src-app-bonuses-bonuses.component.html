@@ -1,0 +1,11 @@
+<div>
+  <h3>Bonuses</h3>
+  <ul>
+    <li *ngFor="let bonus of bonuses">
+      <h4>{{ bonus.name }}</h4>
+      <p>{{ bonus.description }}</p>
+      <p>Reward: {{ bonus.reward_currency }} currency</p>
+      <button (click)="claimBonus(bonus.id)">Claim</button>
+    </li>
+  </ul>
+</div>
