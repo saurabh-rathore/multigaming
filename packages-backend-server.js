@@ -33,7 +33,7 @@ const createTables = `
     CREATE TABLE IF NOT EXISTS user_badges (user_id INT, badge_id INT, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(badge_id) REFERENCES badges(id), PRIMARY KEY (user_id, badge_id));
     CREATE TABLE IF NOT EXISTS friends (user_id_1 INT, user_id_2 INT, FOREIGN KEY(user_id_1) REFERENCES users(id), FOREIGN KEY(user_id_2) REFERENCES users(id), PRIMARY KEY (user_id_1, user_id_2));
     CREATE TABLE IF NOT EXISTS messages (id INT AUTO_INCREMENT PRIMARY KEY, sender_id INT, receiver_id INT, message TEXT, FOREIGN KEY(sender_id) REFERENCES users(id), FOREIGN KEY(receiver_id) REFERENCES users(id));
-    CREATE TABLE IF NOT EXISTS game_history (id INT AUTO_INCREMENT PRIMARY KEY, game_name VARCHAR(255), winner_id INT, loser_id INT, is_draw BOOLEAN, FOREIGN KEY(winner_id) REFERENCES users(id), FOREIGN KEY(loser_id) REFERENCES users(id));
+    CREATE TABLE IF NOT EXISTS game_history (id INT AUTO_INCREMENT PRIMARY KEY, game_name VARCHAR(255), winner_id INT, loser_id INT, is_draw BOOLEAN, fantasy_team_id INT, FOREIGN KEY(winner_id) REFERENCES users(id), FOREIGN KEY(loser_id) REFERENCES users(id), FOREIGN KEY(fantasy_team_id) REFERENCES fantasy_teams(id));
     CREATE TABLE IF NOT EXISTS guilds (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, description VARCHAR(255));
     CREATE TABLE IF NOT EXISTS guild_members (guild_id INT, user_id INT, role VARCHAR(255), FOREIGN KEY(guild_id) REFERENCES guilds(id), FOREIGN KEY(user_id) REFERENCES users(id), PRIMARY KEY (guild_id, user_id));
     CREATE TABLE IF NOT EXISTS tournaments (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), game_name VARCHAR(255), start_time DATETIME, end_time DATETIME);
@@ -50,9 +50,8 @@ const createTables = `
     INSERT IGNORE INTO bonuses (name, description, reward_currency) VALUES ('Daily Login', 'Log in each day to receive a bonus.', 10);
     CREATE TABLE IF NOT EXISTS referrals (id INT AUTO_INCREMENT PRIMARY KEY, referrer_id INT, referred_id INT, FOREIGN KEY(referrer_id) REFERENCES users(id), FOREIGN KEY(referred_id) REFERENCES users(id));
     CREATE TABLE IF NOT EXISTS fantasy_leagues (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE, sport VARCHAR(255));
-    CREATE TABLE IF NOT EXISTS fantasy_teams (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, league_id INT, name VARCHAR(255), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(league_id) REFERENCES fantasy_leagues(id));
+    CREATE TABLE IF NOT EXISTS fantasy_teams (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, league_id INT, name VARCHAR(255), score INT DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(league_id) REFERENCES fantasy_leagues(id));
     CREATE TABLE IF NOT EXISTS fantasy_players (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), sport VARCHAR(255), team VARCHAR(255));
-    CREATE TABLE IF NOT EXISTS user_behavior (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, game_name VARCHAR(255), action VARCHAR(255), FOREIGN KEY(user_id) REFERENCES users(id));
 `;
 
 db.query(createTables, (err, result) => {
@@ -376,6 +375,22 @@ app.post('/api/fantasy-teams', (req, res) => {
     });
 });
 
+app.get('/api/fantasy-leagues/:id', (req, res) => {
+    const leagueId = req.params.id;
+    db.query("SELECT * FROM fantasy_leagues WHERE id = ?", [leagueId], (err, results) => {
+        if (err || results.length === 0) {
+            return res.status(404).json({ error: 'League not found' });
+        }
+        const league = results[0];
+        db.query("SELECT t.name, t.score FROM fantasy_teams t WHERE t.league_id = ? ORDER BY score DESC", [leagueId], (err, teams) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error fetching teams' });
+            }
+            res.json({ ...league, teams });
+        });
+    });
+});
+
 let players = {};
 let matchmakingQueue = {};
 let lobbies = {};
@@ -439,7 +454,14 @@ io.on('connection', (socket) => {
                 addCurrency(winnerId, 10);
                 db.query("INSERT INTO game_history SET ?", { game_name: 'Tic-Tac-Toe', winner_id: winnerId, loser_id: loserId, is_draw: false }, function(err, result) {
                     if (!err) {
-                        db.query("INSERT INTO replays SET ?", { game_id: result.insertId, replay_data: JSON.stringify(game.moves) });
+                        const gameId = result.insertId;
+                        db.query("INSERT INTO replays SET ?", { game_id: gameId, replay_data: JSON.stringify(game.moves) });
+                        db.query("SELECT league_id FROM fantasy_teams WHERE user_id = ?", [winnerId], (err, results) => {
+                            if (results && results.length > 0) {
+                                const leagueId = results[0].league_id;
+                                db.query("UPDATE fantasy_teams SET score = score + 1 WHERE league_id = ? AND user_id = ?", [leagueId, winnerId]);
+                            }
+                        });
                     }
                 });
                 io.to(gameId).emit('game-over', `${game.currentPlayer} wins!`);

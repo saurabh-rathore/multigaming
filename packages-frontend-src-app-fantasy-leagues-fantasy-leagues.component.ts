@@ -10,6 +10,7 @@ export class FantasyLeaguesComponent implements OnInit {
   leagues: any[];
   newLeagueName = '';
   newLeagueSport = '';
+  selectedLeague: any;
 
   constructor(private http: HttpClient) { }
 
@@ -25,5 +26,10 @@ export class FantasyLeaguesComponent implements OnInit {
         this.newLeagueName = '';
         this.newLeagueSport = '';
       });
+  }
+
+  viewLeague(leagueId: number) {
+    this.http.get(`/api/fantasy-leagues/${leagueId}`)
+      .subscribe(league => this.selectedLeague = league);
   }
 }

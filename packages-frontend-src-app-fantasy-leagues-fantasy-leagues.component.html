@@ -2,7 +2,8 @@
   <h3>Fantasy Leagues</h3>
   <ul>
     <li *ngFor="let league of leagues">
-      {{ league.name }} ({{ league.sport }})
+      <h4>{{ league.name }} ({{ league.sport }})</h4>
+      <button (click)="viewLeague(league.id)">View</button>
     </li>
   </ul>
   <div>
@@ -10,5 +11,13 @@
     <input [(ngModel)]="newLeagueName" placeholder="League Name">
     <input [(ngModel)]="newLeagueSport" placeholder="Sport">
     <button (click)="createLeague()">Create</button>
+  </div>
+  <div *ngIf="selectedLeague">
+    <h4>{{ selectedLeague.name }}</h4>
+    <ul>
+      <li *ngFor="let team of selectedLeague.teams">
+        {{ team.name }} - {{ team.score }}
+      </li>
+    </ul>
   </div>
 </div>
