@@ -32,7 +32,8 @@ export class GameEngineService {
         description: "The classic game of Ludo.", genre: "Board",
         min_players: 2, max_players: 4, is_active: true,
         stake_options: JSON.stringify([{amount: 10, currency: "INR"}, {amount: 50, currency: "INR"}]), // Store as JSON string
-        created_at: new Date(), updatedAt: new Date()
+        created_at: new Date(),
+        updated_at: new Date()
       };
       const insertSql = `INSERT INTO games (game_id, name, description, genre, min_players, max_players, is_active, stake_options, created_at, updated_at)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;

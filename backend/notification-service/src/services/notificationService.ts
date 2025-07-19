@@ -17,14 +17,14 @@ const WELCOME_EMAIL_TEMPLATE_ID = generateId('tpl_email');
 mockTemplates.set(WELCOME_EMAIL_TEMPLATE_ID, {
     templateId: WELCOME_EMAIL_TEMPLATE_ID, name: 'Welcome Email', type: 'email',
     subjectTemplate: 'Welcome to {{appName}}, {{userName}}!',
-    bodyTemplate: 'Hello {{userName}},
+    bodyTemplate: `Hello {{userName}},
 
 Thanks for signing up for {{appName}}.
 
 Enjoy your gaming experience!
 
 Best,
-The {{appName}} Team',
+The {{appName}} Team`,
     requiredVariables: ['appName', 'userName'],
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
 });
