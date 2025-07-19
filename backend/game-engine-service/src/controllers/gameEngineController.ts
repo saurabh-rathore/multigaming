@@ -1,7 +1,7 @@
 import { GameEngineService } from '../services/gameEngineService';
-import { GameResultRequestBody, CreateLudoGameRequest, LudoRollDiceRequest, LudoMovePieceRequest } from '../types/game.types'; // Assuming Ludo types are re-exported or merged in game.types or imported directly
+import { GameResultRequestBody } from '../types/game.types';
 // If Ludo types are separate:
-import { LudoGameState } from '../types/ludo.types';
+import { LudoGameState, CreateLudoGameRequest, LudoRollDiceRequest, LudoMovePieceRequest } from '../types/ludo.types';
 import { generateId } from '../utils/helpers'; // For roomId generation if not provided
 
 
@@ -62,7 +62,7 @@ export const createNewLudoGame = async (req: Request, res: Response) => {
             return { statusCode: 400, body: { message: 'Valid userIds array (2-4 players) is required.'}};
         }
         // Assuming gameId for Ludo is known or passed
-        const ludoGameState = await gameEngineService.startLudoGame(roomId, userIds, gameId);
+        const ludoGameState = await gameEngineService.startLudoGame(roomId, userIds);
         return { statusCode: 201, body: ludoGameState };
     } catch (error: any) {
         const statusCode = error.message.includes('already active') ? 409 :

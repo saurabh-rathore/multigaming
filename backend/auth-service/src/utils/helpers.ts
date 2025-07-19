@@ -1,4 +1,4 @@
-// import { v4 as uuidv4 } from 'uuid'; // Placeholder: Assume uuid is available
+import { v4 as uuidv4 } from 'uuid'; // Placeholder: Assume uuid is available
 
 /**
  * Placeholder for password hashing.
