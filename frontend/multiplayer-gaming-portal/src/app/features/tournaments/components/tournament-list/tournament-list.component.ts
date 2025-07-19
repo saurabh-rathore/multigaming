@@ -1,13 +1,14 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { Tournament, TournamentService, TournamentStatus } from '../../services/tournament.service'; // Adjusted path
 import { Observable } from 'rxjs';
 
 @Component({
   selector: 'app-tournament-list',
   standalone: true,
-  imports: [CommonModule, RouterLink, DatePipe],
+  imports: [CommonModule, RouterLink, DatePipe, FormsModule],
   templateUrl: './tournament-list.component.html',
   styleUrls: ['./tournament-list.component.scss']
 })

@@ -48,7 +48,7 @@
                (click)="canMovePiece(piece) && movePiece(piece.pieceId)"
                title="ID: {{piece.pieceId}}, Pos: {{piece.position}}, State: {{piece.state}}">
             {{ piece.pieceId.split('_')[1] }} <!-- Show piece number -->
-            <div class="small">{{piece.state}} @ {{piece.position}}</div>
+            <div class="small">{{piece.state}} &#64; {{piece.position}}</div>
           </div>
         </div>
       </div>

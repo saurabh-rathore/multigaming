@@ -45,6 +45,7 @@ export interface TournamentParticipant {
     status: string; // e.g. 'registered', 'eliminated', 'winner'
     finalRank?: number;
     winnings?: number;
+    winningsCurrency?: string;
 }
 
 export interface RegisterResponse {
@@ -103,8 +104,8 @@ const MOCK_TOURNAMENTS: Tournament[] = [
 // Simulate participants for detail view - simple map for now
 const MOCK_PARTICIPANTS = new Map<string, TournamentParticipant[]>();
 MOCK_PARTICIPANTS.set('ludo_weekly_001', [
-    {participantEntryId: 'p1', tournamentId: 'ludo_weekly_001', userId: 'userA', displayName: 'UserA', registrationTime: new Date(), status: 'registered'},
-    {participantEntryId: 'p2', tournamentId: 'ludo_weekly_001', userId: 'userB', displayName: 'UserB', registrationTime: new Date(), status: 'registered'}
+    {participantEntryId: 'p1', tournamentId: 'ludo_weekly_001', userId: 'userA', displayName: 'UserA', registrationTime: new Date(), status: 'registered', winnings: 100, winningsCurrency: 'INR'},
+    {participantEntryId: 'p2', tournamentId: 'ludo_weekly_001', userId: 'userB', displayName: 'UserB', registrationTime: new Date(), status: 'registered', winnings: 50, winningsCurrency: 'INR'}
 ]);
 
 
