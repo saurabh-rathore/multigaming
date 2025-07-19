@@ -1,6 +1,6 @@
 -- Database schema for Notification-Service
 
-CREATE TABLE notification_templates (
+CREATE TABLE IF NOT EXISTS notification_templates (
     template_id VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -15,7 +15,7 @@ CREATE TABLE notification_templates (
     UNIQUE (name, type) -- Ensure template names are unique per type
 );
 
-CREATE TABLE user_notification_subscriptions (
+CREATE TABLE IF NOT EXISTS user_notification_subscriptions (
     subscription_id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL, -- Logical FK to users table
     type VARCHAR(20) NOT NULL,     -- 'email', 'sms', 'push_fcm', 'push_apns'
@@ -26,7 +26,7 @@ CREATE TABLE user_notification_subscriptions (
     -- last_verified_at TIMESTAMP,
     -- verification_token VARCHAR(255),
     -- metadata JSON, -- e.g. device info for push tokens
-    UNIQUE (user_id, type, endpoint) -- User can't have same endpoint for same type multiple times
+    UNIQUE (user_id, type, endpoint(255)) -- User can't have same endpoint for same type multiple times
     -- UNIQUE (user_id, type, is_primary) where is_primary = TRUE -- only one primary per type (DB specific syntax)
 );
 CREATE INDEX idx_uns_user_id_type_active ON user_notification_subscriptions(user_id, type, is_active);

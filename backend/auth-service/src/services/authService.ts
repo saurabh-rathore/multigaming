@@ -105,7 +105,7 @@ export class AuthService {
       throw new Error(`User account is not active. Current status: ${foundUser.status}`);
     }
 
-    const sessionId = generateId('sess'); // Our app-level ID generation for session
+    const sessionId = generateId(); // Our app-level ID generation for session
     const token = generateJwtToken(foundUser.id, sessionId);
     // const tokenHash = await hashPassword(token); // Hashing the token itself before storing is good practice
                                                 // but the schema has token_hash which might mean hash of an opaque session token, not JWT.
