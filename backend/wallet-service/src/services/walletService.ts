@@ -120,7 +120,7 @@ export class WalletService {
         const now = new Date();
         wallet = {
           wallet_id: newWalletId, user_id: userId, cash_balance: 0, bonus_balance: 0, currency: 'INR', // Default currency
-          created_at: now, updatedAt: now,
+          created_at: now, updated_at: now,
         };
         const insertWalletSql = 'INSERT INTO wallets (wallet_id, user_id, cash_balance, bonus_balance, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)';
         await connection.query(insertWalletSql, [wallet.wallet_id, wallet.user_id, wallet.cash_balance, wallet.bonus_balance, wallet.currency, wallet.created_at, wallet.updated_at]);

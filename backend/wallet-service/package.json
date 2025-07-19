@@ -6,14 +6,14 @@
   "scripts": {
     "start": "node dist/main.js",
     "build": "tsc",
-    "test": "echo "Error: no test specified" && exit 1"
+    "test": "echo 'Error: no test specified' && exit 1"
   },
   "keywords": ["wallet", "payment", "transaction", "gaming"],
   "author": "AI Developer",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.17.1",    // Was installed conceptually before
-    "mysql2": "^2.3.3"       // Adding mysql2 driver
+    "express": "^4.17.1", 
+    "mysql2": "^2.3.3" 
   },
   "devDependencies": {
     "@types/express": "^4.17.13",
