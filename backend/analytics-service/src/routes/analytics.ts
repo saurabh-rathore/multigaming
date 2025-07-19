@@ -1,5 +1,8 @@
+import { Router } from 'express';
 import { ingestAnalyticsEvents } from '../controllers/analyticsController';
 
-export const analyticsRoutes = {
-  post_ingest_events: ingestAnalyticsEvents,    // POST /analytics/ingest
-};
+const router = Router();
+
+router.post('/ingest', ingestAnalyticsEvents);
+
+export default router;

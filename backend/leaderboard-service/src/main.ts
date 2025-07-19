@@ -1,24 +1,13 @@
-console.log('Leaderboard Service starting...');
+import express from 'express';
+import leaderboardRoutes from './routes/leaderboard';
 
-// Simulated Express App
-const app = {
-  get: (path: string, handler: Function) => console.log(`[SimApp] GET ${path}`),
-  listen: (port: number, callback: () => void) => {
-    console.log(`[SimApp] Server would be listening on port ${port}`);
-    callback();
-  }
-};
+const app = express();
+app.use(express.json());
 
-// Simulate route registration
-// GET /v1/leaderboards/{gameId}?timeframe=weekly&limit=50
-app.get('/v1/leaderboards/:gameId', (req: any, res: any) => {
-  // In a real app, req.query would be populated by Express
-  // For simulation, if testing controller directly, mock req.query
-  /* leaderboardRoutes.get_leaderboard_by_game(req, res) */
-});
+app.use('/v1/leaderboards', leaderboardRoutes);
 
-const PORT = process.env.PORT || 3006; // Different port
+const PORT = process.env.PORT || 3006;
 
-app.listen(Number(PORT), () => {
-  console.log(`[SimApp] Leaderboard Service would be running on http://localhost:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Leaderboard Service running on http://localhost:${PORT}`);
 });

@@ -1,18 +1,13 @@
-console.log('Analytics Service starting...');
+import express from 'express';
+import analyticsRoutes from './routes/analytics';
 
-const app = {
-  post: (path: string, handler: Function) => console.log(`[SimApp] POST ${path}`),
-  listen: (port: number, callback: () => void) => {
-    console.log(`[SimApp] Server would be listening on port ${port}`);
-    callback();
-  }
-};
+const app = express();
+app.use(express.json());
 
-// Simulate route registration
-app.post('/v1/analytics/ingest', (req: any, res: any) => { /* analyticsRoutes.post_ingest_events(req, res) */ });
+app.use('/v1/analytics', analyticsRoutes);
 
-const PORT = process.env.PORT || 3010; // Different port
+const PORT = process.env.PORT || 3010;
 
-app.listen(Number(PORT), () => {
-  console.log(`[SimApp] Analytics Service would be running on http://localhost:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Analytics Service running on http://localhost:${PORT}`);
 });

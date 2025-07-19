@@ -1,5 +1,8 @@
+import { Router } from 'express';
 import { getGameLeaderboard } from '../controllers/leaderboardController';
 
-export const leaderboardRoutes = {
-  get_leaderboard_by_game: (req: any, res: any) => getGameLeaderboard(req, res), // GET /leaderboards/:gameId
-};
+const router = Router();
+
+router.get('/:gameId', getGameLeaderboard);
+
+export default router;

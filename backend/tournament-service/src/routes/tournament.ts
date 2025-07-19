@@ -1,15 +1,36 @@
+import { Router } from 'express';
 import {
     listAvailableTournaments, getTournamentDetails, registerUserForTournament,
     getTournamentParticipantList, startTournamentAdmin, finalizeTournamentAdmin
 } from '../controllers/tournamentController';
 
-export const tournamentRoutes = {
-  list_tournaments: listAvailableTournaments,          // GET /tournaments
-  get_tournament_by_id: getTournamentDetails,         // GET /tournaments/:tournamentId
-  register_for_tournament: registerUserForTournament, // POST /tournaments/:tournamentId/register
-  list_participants: getTournamentParticipantList,    // GET /tournaments/:tournamentId/participants
+const router = Router();
 
-  // Admin specific routes (would have different auth/prefix in real setup)
-  admin_start_tournament: startTournamentAdmin,       // POST /tournaments/:tournamentId/start (Admin)
-  admin_finalize_tournament: finalizeTournamentAdmin, // POST /tournaments/:tournamentId/finalize (Admin)
+// Middleware to simulate user authentication
+const userAuthMiddleware = (req: any, res: any, next: any) => {
+    // For testing, let's mock a user if not present
+    // In a real application, you would have proper authentication middleware here
+    req.user = { id: 'simulated_user_from_mw' };
+    console.log(`[Tournament Service] Mock user auth middleware processed, user: ${req.user.id}`);
+    next();
 };
+
+// Middleware to simulate admin authentication
+const adminAuthMiddleware = (req: any, res: any, next: any) => {
+    // For testing, let's mock an admin user if not present
+    // In a real application, you would have proper authentication middleware here
+    req.adminUser = { id: 'sim_admin_ops' };
+    console.log(`[Tournament Service] Mock admin auth middleware processed, admin: ${req.adminUser.id}`);
+    next();
+};
+
+router.get('/', listAvailableTournaments);
+router.get('/:tournamentId', getTournamentDetails);
+router.post('/:tournamentId/register', userAuthMiddleware, registerUserForTournament);
+router.get('/:tournamentId/participants', getTournamentParticipantList);
+
+// Admin routes
+router.post('/:tournamentId/start', adminAuthMiddleware, startTournamentAdmin);
+router.post('/:tournamentId/finalize', adminAuthMiddleware, finalizeTournamentAdmin);
+
+export default router;
