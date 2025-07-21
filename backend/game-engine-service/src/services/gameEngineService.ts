@@ -47,7 +47,7 @@ export class GameEngineService {
   }
   constructor() {
       // Conceptually ensure essential game metadata like Ludo exists when service starts
-      // this.ensureLudoGameMetadataExists(); // This would be called in a real init phase
+      this.ensureLudoGameMetadataExists(); // This would be called in a real init phase
   }
 
 
